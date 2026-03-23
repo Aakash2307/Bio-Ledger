@@ -1,5 +1,5 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI # type: ignore
+from fastapi.middleware.cors import CORSMiddleware # type: ignore
 from database import create_tables
 from app.routes import patient_routes, sample_routes, dashboard_routes
 

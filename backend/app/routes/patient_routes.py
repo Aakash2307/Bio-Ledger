@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter # type: ignore
 from app.schemas.patient_schema import PatientCreate, PatientUpdate
 from app.controllers.patient_controller import (
     get_all_patients,

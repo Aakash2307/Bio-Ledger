@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter # type: ignore
 from app.schemas.patient_schema import SampleCreate
 from app.controllers.sample_controller import create_sample
 

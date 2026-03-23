@@ -136,21 +136,4 @@ The following are excluded using `.gitignore`:
 
 ---
 
-## 📈 Future Improvements
 
-* Authentication system
-* AI integration enhancements
-* Deployment (Docker / Cloud)
-* Database migration to PostgreSQL
-
----
-
-## 🤝 Contributors
-
-Add your team members here.
-
----
-
-## 📄 License
-
-This project is private and intended for internal development.

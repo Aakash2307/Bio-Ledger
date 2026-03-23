@@ -1,0 +1,8 @@
+frontend/my-project/node_modules
+
+backend/venv
+backend/patients_old.xlsx
+
+backend/patients.db
+backend/patients.xlsx
+backend/patients2.xlsx

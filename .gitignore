@@ -1,8 +1,20 @@
-frontend/my-project/node_modules
+# Frontend
+frontend/my-project/node_modules/
 
-backend/venv
-backend/patients_old.xlsx
+# Backend virtual env
+backend/venv/
 
-backend/patients.db
-backend/patients.xlsx
-backend/patients2.xlsx
+# Python cache
+__pycache__/
+*.pyc
+
+# Environment files
+.env
+.env.*
+
+# Excel & DB files (your case)
+backend/*.xlsx
+backend/*.db
+
+# Optional: keep specific file if needed
+# !backend/patients.xlsx

@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { getPatients, getPatientDetails } from "../api";
 import logo from "../assets/tzarnewlogo.png";
 import { useNavigate } from "react-router-dom";
+import BulkUploadModal from "./BulkUploadModel";
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 const statusConfig = {
@@ -119,6 +120,7 @@ export default function PatientRecords() {
   const navigate                              = useNavigate();
   const searchTimer                           = useRef(null);
   const clickTimer                            = useRef(null);   // for single/double click detection
+  const [showBulkUpload, setShowBulkUpload] = useState(false);  // bulk upload modal state
 
   useEffect(() => { loadPatients(); }, []);
 
@@ -252,7 +254,35 @@ export default function PatientRecords() {
               </div>
             </div>
 
-            <button onClick={() => navigate("/add-patient")} style={{
+
+
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+ 
+                {/* ── NEW: Bulk Upload button ── */}
+              <button
+                onClick={() => setShowBulkUpload(true)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "10px 20px", borderRadius: 10,
+                  border: "1.5px solid #e2e8f0", background: "#fff",
+                  color: "#334155", fontSize: 14, fontWeight: 700,
+                  cursor: "pointer", transition: "all 0.15s",
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = "#3b82f6"; e.currentTarget.style.color = "#2563eb"; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.color = "#334155"; }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                Bulk Upload
+              </button>
+
+
+
+              <button onClick={() => navigate("/add-patient")} style={{
               display: "flex", alignItems: "center", gap: 8,
               padding: "10px 20px", borderRadius: 10, border: "none",
               background: "#2563eb", color: "#fff", fontSize: 14, fontWeight: 700,
@@ -269,6 +299,11 @@ export default function PatientRecords() {
               </svg>
               Add Patient
             </button>
+          
+            
+            </div>
+
+            
           </div>
         </div>
 
@@ -642,6 +677,16 @@ export default function PatientRecords() {
           )}
         </div>
       </div>
+
+      {showBulkUpload && (
+    <BulkUploadModal
+      onClose={() => setShowBulkUpload(false)}
+      onDone={() => {
+        setShowBulkUpload(false);
+        loadPatients();   // refresh the table after upload
+      }}
+    />
+  )}
     </>
   );
 }

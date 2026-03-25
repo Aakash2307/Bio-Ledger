@@ -724,6 +724,8 @@ async function deletePatient(patientId, patientName, e) {
 
                     <DetailRow label="Patient ID" value={selectedSample.patient?.patient_id} />
                     <DetailRow label="Case Label" value={selectedSample.sample?.new_case_label} />
+                    <DetailRow label="SID" value={selectedSample.patient?.sid} />
+                    
 
                     <div style={{ paddingTop: 16 }}>
                       <button

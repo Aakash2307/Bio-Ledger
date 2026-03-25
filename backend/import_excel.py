@@ -1,7 +1,7 @@
 import pandas as pd
 from database import get_connection, create_tables
 
-EXCEL_FILE = "patients.xlsx"
+EXCEL_FILE = "old_files/patients.xlsx"
 SHEET_NAME = "India_Lab"
 
 

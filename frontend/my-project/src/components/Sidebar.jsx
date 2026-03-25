@@ -8,8 +8,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 const navItems = [
   { label: "Dashboard",  icon: "⊞", path: "/"           },
   { label: "Patients",   icon: "👤", path: "/patients"   },
-  { label: "Samples",    icon: "🧪", path: "/samples"    },
-  { label: "Sequencing", icon: "〜", path: "/sequencing" },
+  { label: "Sample Tracker",    icon: "🧪", path: "/samples"    },
+  { label: "Sequencing analysis", icon: "〜", path: "/sequencing" },
   { label: "Reports",    icon: "📄", path: "/reports"    },
   { label: "Settings",   icon: "⚙",  path: "/settings"   },
 ];

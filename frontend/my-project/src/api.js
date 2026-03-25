@@ -2,8 +2,17 @@ const BASE_URL = "http://127.0.0.1:8000";
 
 export async function getPatients() {
   const res = await fetch(`${BASE_URL}/patients`);
+
   if (!res.ok) throw new Error("Failed to fetch patients");
-  return res.json();
+
+  const data = await res.json();
+
+  // basic safety check
+  if (!Array.isArray(data)) {
+    throw new Error("Invalid patients response");
+  }
+
+  return data;
 }
 
 export async function getPatientDetails(id) {

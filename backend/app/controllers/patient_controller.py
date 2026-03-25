@@ -2,6 +2,7 @@ from fastapi import HTTPException # type: ignore
 from database import get_connection
 from app.schemas.patient_schema import PatientCreate, PatientUpdate, SampleCreate
 from app.utils import normalize_date
+# from app.services.patient_service import get_all_patients_service
 
 
 def get_all_patients():

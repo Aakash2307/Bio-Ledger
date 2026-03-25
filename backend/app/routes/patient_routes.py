@@ -5,6 +5,7 @@ from app.controllers.patient_controller import (
     get_patient_by_id,
     create_patient,
     update_patient,
+    delete_patient as delete_patient_controller
 )
 
 router = APIRouter(prefix="/patients", tags=["Patients"])
@@ -28,3 +29,9 @@ def add_patient(patient: PatientCreate):
 @router.put("/{patient_id}")
 def edit_patient(patient_id: int, data: PatientUpdate):
     return update_patient(patient_id, data)
+
+
+@router.delete("/{patient_id}")
+def remove_patient(patient_id: int):
+    return delete_patient_controller(patient_id)
+    

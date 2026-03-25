@@ -3,6 +3,7 @@ import { getPatients, getPatientDetails } from "../api";
 import logo from "../assets/tzarnewlogo.png";
 import { useNavigate } from "react-router-dom";
 import BulkUploadModal from "./BulkUploadModel";
+import { deletePatient as deletePatientApi } from "../api";
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 const statusConfig = {
@@ -36,7 +37,7 @@ function StatusBadge({ status }) {
 function SkeletonRow() {
   return (
     <tr>
-      {[30, 140, 110, 180, 50, 80, 120].map((w, i) => (
+      {[30, 140, 110, 180, 50, 80, 120, 30].map((w, i) => (
         <td key={i} style={{ padding: "18px 16px" }}>
           <div style={{
             height: 13, width: w, borderRadius: 6,
@@ -77,7 +78,6 @@ function deduplicatePatients(rows) {
       map[key] = {
         ...row,
         case_labels: row.new_case_label ? [row.new_case_label] : [],
-        // keep raw samples for sub-rows
         _samples: row.new_case_label ? [{ new_case_label: row.new_case_label }] : [],
       };
     } else {
@@ -107,20 +107,37 @@ function Chevron({ open }) {
   );
 }
 
+// ─── Trash Icon ───────────────────────────────────────────────────────────────
+function TrashIcon({ style }) {
+  return (
+    <svg
+      width="14" height="14" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      style={style}
+    >
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </svg>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function PatientRecords() {
   const [patients, setPatients]               = useState([]);
   const [search, setSearch]                   = useState("");
-  const [expandedIds, setExpandedIds]         = useState(new Set());   // which patient rows are open
-  const [selectedSample, setSelectedSample]   = useState(null);        // { patient, sample }
+  const [expandedIds, setExpandedIds]         = useState(new Set());
+  const [selectedSample, setSelectedSample]   = useState(null);
   const [loadingDetail, setLoadingDetail]     = useState(false);
-  const [fullDetail, setFullDetail]           = useState(null);        // full patient+samples from API
+  const [fullDetail, setFullDetail]           = useState(null);
   const [loadingList, setLoadingList]         = useState(true);
   const [error, setError]                     = useState(null);
+  const [deletingId, setDeletingId]           = useState(null);   // tracks which patient is being deleted
   const navigate                              = useNavigate();
-  const searchTimer                           = useRef(null);
-  const clickTimer                            = useRef(null);   // for single/double click detection
-  const [showBulkUpload, setShowBulkUpload] = useState(false);  // bulk upload modal state
+  const clickTimer                            = useRef(null);
+  const [showBulkUpload, setShowBulkUpload]   = useState(false);
 
   useEffect(() => { loadPatients(); }, []);
 
@@ -138,6 +155,33 @@ export default function PatientRecords() {
     }
   }
 
+  // ── Delete patient ──────────────────────────────────────────────────────────
+async function deletePatient(patientId, patientName, e) {
+  e.stopPropagation();
+  if (!confirm(`Delete patient "${patientName || "this patient"}"?\n\nThis will permanently remove them and all their samples.`)) return;
+
+  setDeletingId(patientId);
+  try {
+    await deletePatientApi(patientId);   // ← uses the api.js function now
+
+    if (selectedSample?.patient?.id === patientId) {
+      setSelectedSample(null);
+      setFullDetail(null);
+    }
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      next.delete(patientId);
+      return next;
+    });
+    loadPatients();
+  } catch (err) {
+    console.error(err);
+    alert("Failed to delete patient. Please try again.");
+  } finally {
+    setDeletingId(null);
+  }
+}
+
   // Toggle expand/collapse for a patient row
   function toggleExpand(patientId, e) {
     e.stopPropagation();
@@ -148,20 +192,15 @@ export default function PatientRecords() {
     });
   }
 
-  // Single click → expand + side panel preview
-  // Double click → navigate to full details
   function handlePatientClick(patientId, e) {
     if (e.detail === 2) {
-      // Double click — cancel any pending single click and go to full details
       clearTimeout(clickTimer.current);
       navigate(`/view-patient/${patientId}`);
       return;
     }
-    // Single click — expand row
     toggleExpand(patientId, e);
   }
 
-  // Click a sample sub-row → fetch full details then show that sample in panel
   async function openSample(patientId, sampleLabel) {
     setSelectedSample(null);
     setFullDetail(null);
@@ -185,7 +224,6 @@ export default function PatientRecords() {
     const aob    = (p.aob_id ?? "").toLowerCase();
     const name   = (p.name   ?? "").toLowerCase();
     const labels = (p.case_labels ?? []).map(l => l.toLowerCase());
-    const sid    = (p.sid    ?? "").toLowerCase();  
     if (aob === q || name === q || labels.includes(q))                                 return 0;
     if (aob.startsWith(q) || name.startsWith(q) || labels.some(l => l.startsWith(q))) return 1;
     return 2;
@@ -199,7 +237,6 @@ export default function PatientRecords() {
           (p.name   ?? "").toLowerCase().includes(q) ||
           (p.sid ?? "").toLowerCase().includes(q) ||
           (p.case_labels ?? []).some(l => l.toLowerCase().includes(q))
-
         )
         .sort((a, b) => getScore(a) - getScore(b));
 
@@ -226,6 +263,13 @@ export default function PatientRecords() {
         .sample-row { transition: background 0.1s; cursor: pointer; }
         .sample-row:hover { background: #f0f9ff !important; }
         .sample-row.active-sample { background: #dbeafe !important; }
+
+        .delete-btn { transition: all 0.15s; }
+        .delete-btn:hover { background: #fef2f2 !important; border-color: #fecaca !important; }
+        .delete-btn:hover svg { color: #dc2626 !important; }
+        .delete-btn:active { transform: scale(0.93); }
+
+        .delete-btn.deleting { opacity: 0.5; pointer-events: none; }
       `}</style>
 
       <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'DM Sans', sans-serif" }}>
@@ -254,11 +298,8 @@ export default function PatientRecords() {
               </div>
             </div>
 
-
-
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
- 
-                {/* ── NEW: Bulk Upload button ── */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {/* Bulk Upload button */}
               <button
                 onClick={() => setShowBulkUpload(true)}
                 style={{
@@ -280,30 +321,24 @@ export default function PatientRecords() {
                 Bulk Upload
               </button>
 
-
-
               <button onClick={() => navigate("/add-patient")} style={{
-              display: "flex", alignItems: "center", gap: 8,
-              padding: "10px 20px", borderRadius: 10, border: "none",
-              background: "#2563eb", color: "#fff", fontSize: 14, fontWeight: 700,
-              cursor: "pointer", boxShadow: "0 2px 8px rgba(37,99,235,0.3)", transition: "all 0.15s",
-            }}
-              onMouseEnter={e => { e.currentTarget.style.background = "#1d4ed8"; e.currentTarget.style.transform = "translateY(-1px)"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "#2563eb"; e.currentTarget.style.transform = "none"; }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-                <circle cx="9" cy="7" r="4"/>
-                <line x1="19" y1="8" x2="19" y2="14"/>
-                <line x1="22" y1="11" x2="16" y2="11"/>
-              </svg>
-              Add Patient
-            </button>
-          
-            
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "10px 20px", borderRadius: 10, border: "none",
+                background: "#2563eb", color: "#fff", fontSize: 14, fontWeight: 700,
+                cursor: "pointer", boxShadow: "0 2px 8px rgba(37,99,235,0.3)", transition: "all 0.15s",
+              }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#1d4ed8"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "#2563eb"; e.currentTarget.style.transform = "none"; }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                  <circle cx="9" cy="7" r="4"/>
+                  <line x1="19" y1="8" x2="19" y2="14"/>
+                  <line x1="22" y1="11" x2="16" y2="11"/>
+                </svg>
+                Add Patient
+              </button>
             </div>
-
-            
           </div>
         </div>
 
@@ -364,9 +399,9 @@ export default function PatientRecords() {
                     <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e8edf3" }}>
                       {/* expand toggle col */}
                       <th style={{ width: 44, padding: "13px 8px 13px 16px" }} />
-                      {["AOB ID", "SID", "Name", "Age", "Gender", "Samples"].map((h, i) => (
+                      {["AOB ID", "SID", "Name", "Age", "Gender", "Samples", ""].map((h, i) => (
                         <th key={i} style={{
-                          padding: "13px 16px", textAlign: "left",
+                          padding: "13px 16px", textAlign: i === 6 ? "right" : "left",
                           fontSize: 11, fontWeight: 700, color: "#94a3b8",
                           letterSpacing: "0.08em", textTransform: "uppercase",
                           fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap",
@@ -379,7 +414,7 @@ export default function PatientRecords() {
                       Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
                     ) : filtered.length === 0 ? (
                       <tr>
-                        <td colSpan={7} style={{ padding: "60px 16px", textAlign: "center" }}>
+                        <td colSpan={8} style={{ padding: "60px 16px", textAlign: "center" }}>
                           <div style={{ fontSize: 32, marginBottom: 10 }}>🔍</div>
                           <div style={{ fontSize: 15, fontWeight: 600, color: "#64748b" }}>No patients found</div>
                           <div style={{ fontSize: 13, color: "#94a3b8", marginTop: 4 }}>
@@ -392,6 +427,7 @@ export default function PatientRecords() {
                         const isExpanded  = expandedIds.has(p.id);
                         const isActive    = activePanelPatientId === p.id;
                         const hasSamples  = p.case_labels && p.case_labels.length > 0;
+                        const isDeleting  = deletingId === p.id;
 
                         return (
                           <>
@@ -404,6 +440,8 @@ export default function PatientRecords() {
                                 borderBottom: isExpanded ? "none" : (idx < filtered.length - 1 ? "1px solid #f1f5f9" : "none"),
                                 background: isActive ? "#eff6ff" : "#fff",
                                 animation: `slideUp 0.2s ease ${idx * 0.03}s both`,
+                                opacity: isDeleting ? 0.5 : 1,
+                                transition: "opacity 0.2s",
                               }}
                             >
                               {/* Chevron */}
@@ -422,28 +460,39 @@ export default function PatientRecords() {
                                   <div style={{ width: 26 }} />
                                 )}
                               </td>
+
+                              {/* AOB ID */}
                               <td style={{ padding: "17px 16px" }}>
                                 <span className="aob-link" style={{
                                   color: "#2563eb", fontSize: 13, fontWeight: 600,
                                   fontFamily: "'DM Mono', monospace", transition: "color 0.15s",
                                 }}>{p.aob_id || "—"}</span>
                               </td>
+
+                              {/* SID */}
                               <td style={{ padding: "17px 16px" }}>
                                 <span style={{ color: "#64748b", fontSize: 13, fontFamily: "'DM Mono', monospace" }}>
                                   {p.sid || "—"}
                                 </span>
                               </td>
+
+                              {/* Name */}
                               <td style={{ padding: "17px 16px" }}>
                                 <span style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}>
                                   {p.name || "—"}
                                 </span>
                               </td>
+
+                              {/* Age */}
                               <td style={{ padding: "17px 16px" }}>
                                 <span style={{ fontSize: 14, color: "#334155" }}>{p.age ?? "—"}</span>
                               </td>
+
+                              {/* Gender */}
                               <td style={{ padding: "17px 16px" }}>
                                 <span style={{ fontSize: 14, color: "#334155" }}>{p.gender || "—"}</span>
                               </td>
+
                               {/* Sample count badge */}
                               <td style={{ padding: "17px 16px" }}>
                                 {hasSamples ? (
@@ -467,12 +516,43 @@ export default function PatientRecords() {
                                   <span style={{ fontSize: 13, color: "#cbd5e1" }}>No samples</span>
                                 )}
                               </td>
+
+                              {/* ── Delete Button ── */}
+                              <td
+                                style={{ padding: "17px 16px 17px 8px", textAlign: "right" }}
+                                onClick={e => e.stopPropagation()}
+                              >
+                                <button
+                                  title="Delete patient"
+                                  className={`delete-btn${isDeleting ? " deleting" : ""}`}
+                                  onClick={e => deletePatient(p.id, p.name, e)}
+                                  style={{
+                                    width: 30, height: 30, borderRadius: 7,
+                                    border: "1px solid transparent",
+                                    background: "transparent",
+                                    cursor: isDeleting ? "not-allowed" : "pointer",
+                                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                    color: "#94a3b8",
+                                  }}
+                                >
+                                  {isDeleting ? (
+                                    /* Spinner while deleting */
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                      stroke="#dc2626" strokeWidth="2.5" strokeLinecap="round"
+                                      style={{ animation: "spin 0.7s linear infinite" }}>
+                                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                                    </svg>
+                                  ) : (
+                                    <TrashIcon style={{ transition: "color 0.15s" }} />
+                                  )}
+                                </button>
+                              </td>
                             </tr>
 
                             {/* ── Sample Sub-Rows ── */}
                             {isExpanded && hasSamples && (
                               <tr key={`expand-${p.id}`}>
-                                <td colSpan={7} style={{ padding: 0, borderBottom: "1px solid #e8edf3" }}>
+                                <td colSpan={8} style={{ padding: 0, borderBottom: "1px solid #e8edf3" }}>
                                   <div style={{
                                     background: "#f8faff",
                                     borderTop: "1px solid #dbeafe",
@@ -522,21 +602,18 @@ export default function PatientRecords() {
                                             transition: "background 0.1s",
                                           }}
                                         >
-                                          {/* indent + sample bullet */}
                                           <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
                                             <div style={{
                                               width: 6, height: 6, borderRadius: "50%",
                                               background: isActiveSample ? "#2563eb" : "#93c5fd",
                                             }} />
                                           </div>
-                                          {/* Case label */}
                                           <div style={{ padding: "0 16px" }}>
                                             <span style={{
                                               fontSize: 13, fontWeight: 600, color: "#1e40af",
                                               fontFamily: "'DM Mono', monospace",
                                             }}>{lbl}</span>
                                           </div>
-                                          {/* These are placeholders — full data loads in side panel */}
                                           <div style={{ padding: "0 16px" }}>
                                             <span style={{ fontSize: 12, color: "#64748b" }}>Click to view</span>
                                           </div>
@@ -636,8 +713,6 @@ export default function PatientRecords() {
                   </div>
                 ) : selectedSample && (
                   <div style={{ animation: "fadeIn 0.2s ease", paddingTop: 16 }}>
-
-                    {/* Name */}
                     <div style={{ marginBottom: 16 }}>
                       <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 }}>
                         Name
@@ -650,7 +725,6 @@ export default function PatientRecords() {
                     <DetailRow label="Patient ID" value={selectedSample.patient?.patient_id} />
                     <DetailRow label="Case Label" value={selectedSample.sample?.new_case_label} />
 
-                    {/* View Full Details button */}
                     <div style={{ paddingTop: 16 }}>
                       <button
                         onClick={() => navigate(`/view-patient/${selectedSample.patient?.id}`)}
@@ -679,14 +753,18 @@ export default function PatientRecords() {
       </div>
 
       {showBulkUpload && (
-    <BulkUploadModal
-      onClose={() => setShowBulkUpload(false)}
-      onDone={() => {
-        setShowBulkUpload(false);
-        loadPatients();   // refresh the table after upload
-      }}
-    />
-  )}
+        <BulkUploadModal
+          onClose={() => setShowBulkUpload(false)}
+          onDone={() => {
+            setShowBulkUpload(false);
+            loadPatients();
+          }}
+        />
+      )}
+
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
     </>
   );
 }

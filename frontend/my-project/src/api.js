@@ -66,3 +66,12 @@ export async function getDashboardSummary(period = "all") {
   if (!res.ok) throw new Error("Failed to fetch dashboard summary");
   return res.json();
 }
+
+
+export async function deletePatient(id) {
+  const res = await fetch(`${BASE_URL}/patients/${id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error("Failed to delete patient");
+  return res.json();
+}

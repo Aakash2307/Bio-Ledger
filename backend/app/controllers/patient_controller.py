@@ -193,3 +193,22 @@ def update_patient(patient_id: int, data: PatientUpdate):
         "patient": updated_patient,
         "samples": updated_samples,
     }
+
+
+
+def delete_patient(patient_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT id FROM patients WHERE id = ?", (patient_id,))
+    if not cursor.fetchone():
+        conn.close()
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    # Delete samples first (foreign key constraint)
+    cursor.execute("DELETE FROM samples WHERE patient_ref = ?", (patient_id,))
+    cursor.execute("DELETE FROM patients WHERE id = ?", (patient_id,))
+
+    conn.commit()
+    conn.close()
+    return {"message": "Patient deleted successfully"}

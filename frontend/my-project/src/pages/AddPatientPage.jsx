@@ -348,7 +348,6 @@ function Divider({ label }) {
 function Step1({ form, set, errors }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* Required identifiers block */}
       <div
         style={{
           padding: "16px 18px",
@@ -370,14 +369,7 @@ function Step1({ form, set, errors }) {
           Required Identifiers
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          <Field
-            label={
-              <>
-                Patient ID <Req />
-              </>
-            }
-            error={errors.patient_id}
-          >
+          <Field label={<>Patient ID <Req /></>} error={errors.patient_id}>
             <TextInput
               value={form.patient_id}
               onChange={(v) => set("patient_id", v)}
@@ -385,14 +377,7 @@ function Step1({ form, set, errors }) {
               hasError={!!errors.patient_id}
             />
           </Field>
-          <Field
-            label={
-              <>
-                SID <Req />
-              </>
-            }
-            error={errors.sid}
-          >
+          <Field label={<>SID <Req /></>} error={errors.sid}>
             <TextInput
               value={form.sid}
               onChange={(v) => set("sid", v)}
@@ -649,16 +634,33 @@ function Step4({ files, setFile }) {
   );
 }
 
+// ─── FIX: Expanded SuccessScreen showing all saved fields ────────────────────
 function SuccessScreen({ patient, files, isEditing, onAddAnother, onGoToRecords }) {
   const summaryFields = [
-    ["Patient ID", patient?.patient_id || "—"],
-    ["AOB ID", patient?.aob_id || patient?.AOB_id || "—"],
-    ["SID", patient?.sid || "—"],
-    ["Age", patient?.age ?? "—"],
-    ["Gender", patient?.gender || "—"],
-    ["Status", patient?.patient_status || "New"],
+    ["Patient ID",        patient?.patient_id || "—"],
+    ["Name",              patient?.name || "—"],
+    ["AOB ID",            patient?.aob_id || "—"],
+    ["SID",               patient?.sid || "—"],
+    ["Age",               patient?.age ?? "—"],
+    ["Gender",            patient?.gender || "—"],
+    ["Case Label",        patient?.new_case_label || "—"],
+    ["Disease Type",      patient?.disease_type || "—"],
+    ["Comorbidity",       patient?.comorbidity || "—"],
+    ["Family History",    patient?.family_history || "—"],
+    ["Metastasis",        patient?.metastasis || "—"],
+    ["Status",            patient?.patient_status || "—"],
+    ["Collection Date",   patient?.sample_collection_date || "—"],
+    ["DNA Availability",  patient?.dna_availability || "—"],
+    ["Sequencing",        patient?.sequencing || "—"],
+    ["Data Received",     patient?.data_received || "—"],
+    ["TMR-E (Gbp)",       patient?.tmr_e ?? "—"],
+    ["Data Analysed",     patient?.data_analysed || "—"],
+    ["Sample Leveling",   patient?.sample_leveling || "—"],
   ];
+
+  const monoFields = ["Patient ID", "AOB ID", "SID"];
   const uploadedFiles = Object.entries(files).filter(([, v]) => v !== null);
+
   return (
     <div
       style={{
@@ -712,6 +714,8 @@ function SuccessScreen({ patient, files, isEditing, onAddAnother, onGoToRecords 
         <strong style={{ color: "#0f172a" }}>{patient?.name || "The patient"}</strong> has been{" "}
         {isEditing ? "updated" : "registered"} and is ready for further processing.
       </p>
+
+      {/* ── Summary grid ── */}
       <div
         style={{
           background: "#f8fafc",
@@ -720,7 +724,7 @@ function SuccessScreen({ patient, files, isEditing, onAddAnother, onGoToRecords 
           padding: "18px 24px",
           marginBottom: uploadedFiles.length ? 16 : 32,
           width: "100%",
-          maxWidth: 420,
+          maxWidth: 520,
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
           gap: "12px 24px",
@@ -747,9 +751,7 @@ function SuccessScreen({ patient, files, isEditing, onAddAnother, onGoToRecords 
                 fontSize: 13,
                 fontWeight: 600,
                 color: "#1e293b",
-                fontFamily: ["Patient ID", "AOB ID", "SID"].includes(label)
-                  ? "'DM Mono', monospace"
-                  : "inherit",
+                fontFamily: monoFields.includes(label) ? "'DM Mono', monospace" : "inherit",
               }}
             >
               {String(val)}
@@ -757,6 +759,7 @@ function SuccessScreen({ patient, files, isEditing, onAddAnother, onGoToRecords 
           </div>
         ))}
       </div>
+
       {uploadedFiles.length > 0 && (
         <div
           style={{
@@ -766,7 +769,7 @@ function SuccessScreen({ patient, files, isEditing, onAddAnother, onGoToRecords 
             padding: "14px 20px",
             marginBottom: 32,
             width: "100%",
-            maxWidth: 420,
+            maxWidth: 520,
             textAlign: "left",
             animation: "slideUp 0.3s ease 0.22s both",
           }}
@@ -791,7 +794,8 @@ function SuccessScreen({ patient, files, isEditing, onAddAnother, onGoToRecords 
           ))}
         </div>
       )}
-      <div style={{ display: "flex", gap: 12, width: "100%", maxWidth: 420, animation: "slideUp 0.3s ease 0.25s both" }}>
+
+      <div style={{ display: "flex", gap: 12, width: "100%", maxWidth: 520, animation: "slideUp 0.3s ease 0.25s both" }}>
         {!isEditing && (
           <button
             onClick={onAddAnother}
@@ -853,7 +857,7 @@ function SuccessScreen({ patient, files, isEditing, onAddAnother, onGoToRecords 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function AddPatientPage() {
   const navigate = useNavigate();
-  const { patientId } = useParams(); // Get patient ID if editing
+  const { patientId } = useParams();
   const isEditing = !!patientId;
 
   const [step, setStep] = useState(1);
@@ -866,11 +870,9 @@ export default function AddPatientPage() {
   const [savedPatient, setSavedPatient] = useState(null);
   const [loading, setLoading] = useState(isEditing);
 
-  // ── Load patient data when editing ──────────────────────────────────────────
   useEffect(() => {
     if (isEditing && patientId) {
       setLoading(true);
-      // Fetch patient data from API
       fetch(`/api/patients/${patientId}`)
         .then((res) => res.json())
         .then((patient) => {
@@ -912,7 +914,6 @@ export default function AddPatientPage() {
   };
   const setFile = (key, val) => setFiles((f) => ({ ...f, [key]: val }));
 
-  // ── Validation ──────────────────────────────────────────────────────────────
   const validate = (s) => {
     const e = {};
     if (s === 1) {
@@ -924,10 +925,7 @@ export default function AddPatientPage() {
 
   const next = () => {
     const e = validate(step);
-    if (Object.keys(e).length) {
-      setErrors(e);
-      return;
-    }
+    if (Object.keys(e).length) { setErrors(e); return; }
     setErrors({});
     setStep((s) => s + 1);
   };
@@ -939,15 +937,10 @@ export default function AddPatientPage() {
 
   const submit = async () => {
     const e = validate(1);
-    if (Object.keys(e).length) {
-      setErrors(e);
-      setStep(1);
-      return;
-    }
+    if (Object.keys(e).length) { setErrors(e); setStep(1); return; }
     setSubmitting(true);
     setSubmitError(null);
     try {
-      // Build payload with ALL form fields
       const payload = {
         patient_id: form.patient_id,
         name: form.name,
@@ -970,22 +963,22 @@ export default function AddPatientPage() {
         sample_leveling: form.sample_leveling,
       };
 
-      // Remove empty strings to avoid cluttering the database
+      // ─── FIX: Only null-out optional empty fields, never required ones ───
+      const REQUIRED_FIELDS = ["patient_id", "sid"];
       Object.keys(payload).forEach((key) => {
-        if (payload[key] === "") {
+        if (payload[key] === "" && !REQUIRED_FIELDS.includes(key)) {
           payload[key] = null;
         }
       });
 
       let result;
       if (isEditing) {
-        // ✅ Update existing patient
         result = await updatePatient(patientId, payload);
       } else {
-        // ✅ Add new patient
         result = await addPatient(payload);
       }
 
+      // ─── FIX: Fall back to the local form so success screen always has data ─
       setSavedPatient(result || { ...form });
       setSubmitted(true);
     } catch (err) {
@@ -1050,9 +1043,7 @@ export default function AddPatientPage() {
                 src={logo}
                 alt="TZAR Labs"
                 style={{ height: 38, objectFit: "contain" }}
-                onError={(e) => {
-                  e.target.style.display = "none";
-                }}
+                onError={(e) => { e.target.style.display = "none"; }}
               />
               <div>
                 <div style={{ fontSize: 17, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em" }}>
@@ -1088,16 +1079,7 @@ export default function AddPatientPage() {
                 e.currentTarget.style.borderColor = "#e2e8f0";
               }}
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="19" y1="12" x2="5" y2="12" />
                 <polyline points="12 19 5 12 12 5" />
               </svg>
@@ -1112,17 +1094,9 @@ export default function AddPatientPage() {
             <div style={{ marginBottom: 36 }}>
               <div style={{ display: "flex", alignItems: "center" }}>
                 {STEPS.map((s, idx) => {
-                  const done = step > s.id,
-                    current = step === s.id;
+                  const done = step > s.id, current = step === s.id;
                   return (
-                    <div
-                      key={s.id}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        flex: idx < STEPS.length - 1 ? 1 : 0,
-                      }}
-                    >
+                    <div key={s.id} style={{ display: "flex", alignItems: "center", flex: idx < STEPS.length - 1 ? 1 : 0 }}>
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
                         <div
                           style={{
@@ -1140,47 +1114,20 @@ export default function AddPatientPage() {
                           }}
                         >
                           {done ? (
-                            <svg
-                              width="18"
-                              height="18"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="#fff"
-                              strokeWidth="2.5"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                               <polyline points="20 6 9 17 4 12" />
                             </svg>
-                          ) : (
-                            s.icon
-                          )}
+                          ) : s.icon}
                         </div>
                         <div style={{ textAlign: "center" }}>
-                          <div
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 700,
-                              color: current || done ? "#0f172a" : "#94a3b8",
-                            }}
-                          >
+                          <div style={{ fontSize: 12, fontWeight: 700, color: current || done ? "#0f172a" : "#94a3b8" }}>
                             {s.label}
                           </div>
                           <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 1 }}>{s.desc}</div>
                         </div>
                       </div>
                       {idx < STEPS.length - 1 && (
-                        <div
-                          style={{
-                            flex: 1,
-                            height: 2,
-                            margin: "0 8px",
-                            marginBottom: 28,
-                            position: "relative",
-                            background: "#e2e8f0",
-                            borderRadius: 2,
-                          }}
-                        >
+                        <div style={{ flex: 1, height: 2, margin: "0 8px", marginBottom: 28, position: "relative", background: "#e2e8f0", borderRadius: 2 }}>
                           <div
                             style={{
                               position: "absolute",
@@ -1330,16 +1277,7 @@ export default function AddPatientPage() {
                     onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
                     onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}
                   >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="19" y1="12" x2="5" y2="12" />
                       <polyline points="12 19 5 12 12 5" />
                     </svg>
@@ -1354,8 +1292,7 @@ export default function AddPatientPage() {
                           width: step === s.id ? 20 : 7,
                           height: 7,
                           borderRadius: 4,
-                          background:
-                            step === s.id ? "#2563eb" : step > s.id ? "#93c5fd" : "#e2e8f0",
+                          background: step === s.id ? "#2563eb" : step > s.id ? "#93c5fd" : "#e2e8f0",
                           transition: "all 0.3s",
                         }}
                       />
@@ -1390,16 +1327,7 @@ export default function AddPatientPage() {
                       }}
                     >
                       Continue
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <line x1="5" y1="12" x2="19" y2="12" />
                         <polyline points="12 5 19 12 12 19" />
                       </svg>
@@ -1436,20 +1364,9 @@ export default function AddPatientPage() {
                         }
                       }}
                     >
-                      {submitting ? (
-                        "Saving..."
-                      ) : (
+                      {submitting ? "Saving..." : (
                         <>
-                          <svg
-                            width="15"
-                            height="15"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                             <polyline points="20 6 9 17 4 12" />
                           </svg>
                           {isEditing ? "Update Patient" : "Save Patient"}

@@ -431,18 +431,19 @@ function Step2({ form, set }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
         <Field label="Case Label">
-          <TextInput
+          <SelectInput
             value={form.new_case_label}
             onChange={(v) => set("new_case_label", v)}
-            placeholder="e.g. CON"
+            placeholder=""
+            options={["CON", "COT" , "CTN" , "CS" , "HR" ]}
           />
         </Field>
         <Field label="Disease Type">
-          <SelectInput
+          <TextInput
             value={form.disease_type}
             onChange={(v) => set("disease_type", v)}
-            placeholder="Select type"
-            options={["Oncology", "Cardiology", "Neurology", "Rare Disease", "Other"]}
+            placeholder="Write type"
+            // options={["Oncology", "Cardiology", "Neurology", "Rare Disease", "Other"]}
           />
         </Field>
       </div>
@@ -495,7 +496,7 @@ function Step3({ form, set }) {
           <RadioGroup
             value={form.dna_availability}
             onChange={(v) => set("dna_availability", v)}
-            options={["Yes", "No", "Pending"]}
+            options={["Yes", "Exhausted"]}
           />
         </Field>
       </div>
@@ -505,14 +506,14 @@ function Step3({ form, set }) {
             value={form.sequencing}
             onChange={(v) => set("sequencing", v)}
             placeholder="Select type"
-            options={["WES", "WGS", "RNA-Seq", "Panel", "Other"]}
+            options={["Done", "Not Done"]}
           />
         </Field>
         <Field label="Data Received">
-          <RadioGroup
+          <TextInput
             value={form.data_received}
             onChange={(v) => set("data_received", v)}
-            options={["Yes", "No"]}
+            type="date"
           />
         </Field>
       </div>
@@ -534,11 +535,11 @@ function Step3({ form, set }) {
         </Field>
       </div>
       <Field label="Sample Leveling">
-        <SelectInput
+        <TextInput
           value={form.sample_leveling}
           onChange={(v) => set("sample_leveling", v)}
           placeholder="Select level"
-          options={["Level 1", "Level 2", "Level 3", "Not Done"]}
+          // options={["Level 1", "Level 2", "Level 3", "Not Done"]}
         />
       </Field>
     </div>

@@ -30,12 +30,17 @@ for _, row in df.iterrows():
         continue
 
     patient_id_value = clean_value(row.get("Patient ID"))
+    sid_value = clean_value(row.get("SID"))  # grab SID once, reuse for both tables
 
     cursor.execute("SELECT id FROM patients WHERE patient_id = ?", (patient_id_value,))
     existing_patient = cursor.fetchone()
 
     if existing_patient:
         patient_db_id = existing_patient["id"]
+        # If patient already exists, fetch their SID so samples still get it
+        cursor.execute("SELECT sid FROM patients WHERE id = ?", (patient_db_id,))
+        existing_sid = cursor.fetchone()
+        sid_value = existing_sid["sid"] if existing_sid else sid_value
     else:
         cursor.execute("""
             INSERT INTO patients (
@@ -48,7 +53,7 @@ for _, row in df.iterrows():
         """, (
             patient_id_value,
             clean_value(row.get("AOB ID")),
-            clean_value(row.get("SID")),
+            sid_value,
             clean_value(row.get("Name")),
             clean_value(row.get("Age")),
             clean_value(row.get("Gender")),
@@ -68,7 +73,7 @@ for _, row in df.iterrows():
     if new_case_label:
         cursor.execute("""
             INSERT INTO samples (
-                patient_ref, new_case_label, additional, source,
+                patient_ref, sid, new_case_label, additional, source,
                 sample_collection_date, dna_availability,
                 sequencing, din, research_report,
                 sequencing_partner, data_received,
@@ -78,9 +83,10 @@ for _, row in df.iterrows():
                 report_status, report_release_date,
                 comments
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             patient_db_id,
+            sid_value,          # ← sid copied from patient into sample
             new_case_label,
             clean_value(row.get("Additional")),
             clean_value(row.get("Source")),

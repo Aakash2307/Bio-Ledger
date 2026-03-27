@@ -2,6 +2,7 @@ from fastapi import HTTPException # type: ignore
 from database import get_connection
 from app.schemas.patient_schema import PatientCreate, PatientUpdate, SampleCreate
 from app.utils import normalize_date
+# from app.services.patient_service import get_all_patients_service
 
 
 def get_all_patients():
@@ -54,7 +55,6 @@ def create_patient(patient: PatientCreate):
     cursor = conn.cursor()
 
     try:
-        # ── Step 1: Insert into patients table ────────────────────────────────
         cursor.execute("""
             INSERT INTO patients (
                 patient_id, aob_id, sid, name, age, gender,
@@ -77,60 +77,10 @@ def create_patient(patient: PatientCreate):
             patient.metastasis,
             patient.patient_status,
             patient.consultation,
+            patient.comments
         ))
-
-        new_patient_db_id = cursor.lastrowid  # grab the new patient's DB id
-
-        # ── Step 2: Always create a linked sample row ─────────────────────────
-        cursor.execute("""
-            INSERT INTO samples (
-                patient_ref,
-                new_case_label,
-                sample_collection_date,
-                dna_availability,
-                sequencing,
-                data_received,
-                tmr_e,
-                data_analysed_som,
-                data_analysed_germ,
-                sample_labeling,
-                additional,
-                source,
-                din,
-                research_report,
-                sequencing_partner,
-                analysis,
-                report_status,
-                report_release_date,
-                comments
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            new_patient_db_id,
-            patient.new_case_label,
-            patient.sample_collection_date,
-            patient.dna_availability,
-            patient.sequencing,
-            normalize_date(patient.data_received),
-            patient.tmr_e,
-            patient.data_analysed_som,
-            patient.data_analysed_germ,
-            patient.sample_labeling,
-            patient.additional,
-            patient.source,
-            patient.din,
-            patient.research_report,
-            patient.sequencing_partner,
-            patient.analysis,
-            patient.report_status,
-            patient.report_release_date,
-            patient.comments,
-        ))
-
         conn.commit()
-
     except Exception as e:
-        conn.rollback()  # roll back both inserts if either fails
         conn.close()
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -148,142 +98,90 @@ def update_patient(patient_id: int, data: PatientUpdate):
         conn.close()
         raise HTTPException(status_code=404, detail="Patient not found")
 
-    try:
-        # ── Update patients table ─────────────────────────────────────────────
+    # Update patients table
+    cursor.execute("""
+        UPDATE patients SET
+            aob_id = ?,
+            sid = ?,
+            name = ?,
+            age = ?,
+            gender = ?,
+            detail_disease = ?,
+            organ_type = ?,
+            comorbidity = ?,
+            family_history = ?,
+            metastasis = ?,
+            patient_status = ?,
+            consultation = ?
+        WHERE id = ?
+    """, (
+        data.aob_id,
+        data.sid,
+        data.name,
+        data.age,
+        data.gender,
+        data.detail_disease,
+        data.organ_type,
+        data.comorbidity,
+        data.family_history,
+        data.metastasis,
+        data.patient_status,
+        data.consultation,
+        patient_id,
+    ))
+
+    # Update the first/primary sample if one exists
+    cursor.execute(
+        "SELECT id FROM samples WHERE patient_ref = ? ORDER BY id ASC LIMIT 1",
+        (patient_id,)
+    )
+    sample = cursor.fetchone()
+
+    if sample:
         cursor.execute("""
-            UPDATE patients SET
-                aob_id = ?,
-                sid = ?,
-                name = ?,
-                age = ?,
-                gender = ?,
-                detail_disease = ?,
-                organ_type = ?,
-                comorbidity = ?,
-                family_history = ?,
-                metastasis = ?,
-                patient_status = ?,
-                consultation = ?
+            UPDATE samples SET
+                new_case_label = ?,
+                additional = ?,
+                source = ?,
+                sample_collection_date = ?,
+                dna_availability = ?,
+                sequencing = ?,
+                din = ?,
+                research_report = ?,
+                sequencing_partner = ?,
+                data_received = ?,
+                tmr_e = ?,
+                data_analysed_som = ?,
+                data_analysed_germ = ?,
+                sample_labeling = ?,
+                analysis = ?,
+                report_status = ?,
+                report_release_date = ?,
+                comments = ?
             WHERE id = ?
         """, (
-            data.aob_id,
-            data.sid,
-            data.name,
-            data.age,
-            data.gender,
-            data.detail_disease,
-            data.organ_type,
-            data.comorbidity,
-            data.family_history,
-            data.metastasis,
-            data.patient_status,
-            data.consultation,
-            patient_id,
+            data.new_case_label,
+            data.additional,
+            data.source,
+            data.sample_collection_date,
+            data.dna_availability,
+            data.sequencing,
+            data.din,
+            data.research_report,
+            data.sequencing_partner,
+            normalize_date(data.data_received),
+            data.tmr_e,
+            data.data_analysed_som,
+            data.data_analysed_germ,
+            data.sample_labeling,
+            data.analysis,
+            data.report_status,
+            data.report_release_date,
+            data.comments,
+            sample["id"],
         ))
 
-        # ── Upsert samples table: update if exists, insert if not ─────────────
-        cursor.execute(
-            "SELECT id FROM samples WHERE patient_ref = ? ORDER BY id ASC LIMIT 1",
-            (patient_id,)
-        )
-        sample = cursor.fetchone()
-
-        if sample:
-            cursor.execute("""
-                UPDATE samples SET
-                    new_case_label = ?,
-                    additional = ?,
-                    source = ?,
-                    sample_collection_date = ?,
-                    dna_availability = ?,
-                    sequencing = ?,
-                    din = ?,
-                    research_report = ?,
-                    sequencing_partner = ?,
-                    data_received = ?,
-                    tmr_e = ?,
-                    data_analysed_som = ?,
-                    data_analysed_germ = ?,
-                    sample_labeling = ?,
-                    analysis = ?,
-                    report_status = ?,
-                    report_release_date = ?,
-                    comments = ?
-                WHERE id = ?
-            """, (
-                data.new_case_label,
-                data.additional,
-                data.source,
-                data.sample_collection_date,
-                data.dna_availability,
-                data.sequencing,
-                data.din,
-                data.research_report,
-                data.sequencing_partner,
-                normalize_date(data.data_received),
-                data.tmr_e,
-                data.data_analysed_som,
-                data.data_analysed_germ,
-                data.sample_labeling,
-                data.analysis,
-                data.report_status,
-                data.report_release_date,
-                data.comments,
-                sample["id"],
-            ))
-        else:
-            # No sample row yet — create one now
-            cursor.execute("""
-                INSERT INTO samples (
-                    patient_ref,
-                    new_case_label,
-                    additional,
-                    source,
-                    sample_collection_date,
-                    dna_availability,
-                    sequencing,
-                    din,
-                    research_report,
-                    sequencing_partner,
-                    data_received,
-                    tmr_e,
-                    data_analysed_som,
-                    data_analysed_germ,
-                    sample_labeling,
-                    analysis,
-                    report_status,
-                    report_release_date,
-                    comments
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                patient_id,
-                data.new_case_label,
-                data.additional,
-                data.source,
-                data.sample_collection_date,
-                data.dna_availability,
-                data.sequencing,
-                data.din,
-                data.research_report,
-                data.sequencing_partner,
-                normalize_date(data.data_received),
-                data.tmr_e,
-                data.data_analysed_som,
-                data.data_analysed_germ,
-                data.sample_labeling,
-                data.analysis,
-                data.report_status,
-                data.report_release_date,
-                data.comments,
-            ))
-
-        conn.commit()
-
-    except Exception as e:
-        conn.rollback()
-        conn.close()
-        raise HTTPException(status_code=400, detail=str(e))
+    conn.commit()
 
     # Return updated patient + samples
     cursor.execute("SELECT * FROM patients WHERE id = ?", (patient_id,))
@@ -299,6 +197,7 @@ def update_patient(patient_id: int, data: PatientUpdate):
     }
 
 
+
 def delete_patient(patient_id: int):
     conn = get_connection()
     cursor = conn.cursor()
@@ -308,15 +207,10 @@ def delete_patient(patient_id: int):
         conn.close()
         raise HTTPException(status_code=404, detail="Patient not found")
 
-    try:
-        # Delete samples first (foreign key constraint)
-        cursor.execute("DELETE FROM samples WHERE patient_ref = ?", (patient_id,))
-        cursor.execute("DELETE FROM patients WHERE id = ?", (patient_id,))
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        conn.close()
-        raise HTTPException(status_code=400, detail=str(e))
+    # Delete samples first (foreign key constraint)
+    cursor.execute("DELETE FROM samples WHERE patient_ref = ?", (patient_id,))
+    cursor.execute("DELETE FROM patients WHERE id = ?", (patient_id,))
 
+    conn.commit()
     conn.close()
     return {"message": "Patient deleted successfully"}

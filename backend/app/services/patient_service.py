@@ -1,6 +1,5 @@
 from database import get_connection
 
-
 def get_all_patients_service():
     conn = get_connection()
     cursor = conn.cursor()
@@ -9,11 +8,16 @@ def get_all_patients_service():
         SELECT 
             p.id,
             p.patient_id,
+            p.aob_id,
+            p.sid,
             p.name,
             p.age,
             p.gender,
             s.id as sample_id,
-            s.new_case_label
+            s.new_case_label, 
+            s.sequencing,
+            s.dna_availability,
+            s.report_status
         FROM patients p
         LEFT JOIN samples s
         ON p.id = s.patient_ref
@@ -33,6 +37,8 @@ def get_all_patients_service():
             patients[pid] = {
                 "id": pid,
                 "patient_id": row["patient_id"],
+                "aob_id": row["aob_id"],
+                "sid": row["sid"],
                 "name": row["name"],
                 "age": row["age"],
                 "gender": row["gender"],
@@ -43,7 +49,10 @@ def get_all_patients_service():
         if row["sample_id"]:
             patients[pid]["samples"].append({
                 "sample_id": row["sample_id"],
-                "case_label": row["new_case_label"]
+                "new_case_label": row["new_case_label"],
+                "sequencing": row["sequencing"],
+                "dna_availability": row["dna_availability"],
+                "report_status": row["report_status"]
             })
 
     return list(patients.values())

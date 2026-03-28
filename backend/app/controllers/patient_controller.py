@@ -4,6 +4,10 @@ from app.schemas.patient_schema import PatientCreate, PatientUpdate, SampleCreat
 from app.utils import normalize_date
 # from app.services.patient_service import get_all_patients_service
 
+from app.utils import normalize_date
+
+
+
 
 def get_all_patients():
     conn = get_connection()
@@ -18,7 +22,11 @@ def get_all_patients():
             p.name,
             p.age,
             p.gender,
-            s.new_case_label
+            s.id as sample_id,
+            s.new_case_label,
+            s.sequencing,
+            s.dna_availability,
+            s.report_status
         FROM patients p
         LEFT JOIN samples s
         ON p.id = s.patient_ref
@@ -27,6 +35,30 @@ def get_all_patients():
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+
+# def get_all_patients():
+#     conn = get_connection()
+#     cursor = conn.cursor()
+
+#     cursor.execute("""
+#         SELECT 
+#             p.id,
+#             p.patient_id,
+#             p.aob_id,
+#             p.sid,
+#             p.name,
+#             p.age,
+#             p.gender,
+#             s.new_case_label
+#         FROM patients p
+#         LEFT JOIN samples s
+#         ON p.id = s.patient_ref
+#     """)
+
+#     rows = cursor.fetchall()
+#     conn.close()
+#     return [dict(row) for row in rows]
 
 
 def get_patient_by_id(patient_id: int):
@@ -88,6 +120,8 @@ def create_patient(patient: PatientCreate):
     return {"message": "Patient added successfully"}
 
 
+
+
 def update_patient(patient_id: int, data: PatientUpdate):
     conn = get_connection()
     cursor = conn.cursor()
@@ -130,13 +164,24 @@ def update_patient(patient_id: int, data: PatientUpdate):
         patient_id,
     ))
 
-    # Update the first/primary sample if one exists
-    cursor.execute(
-        "SELECT id FROM samples WHERE patient_ref = ? ORDER BY id ASC LIMIT 1",
-        (patient_id,)
-    )
-    sample = cursor.fetchone()
+    # Determine which sample to update
+    sample = None
+    if getattr(data, 'sample_id', None):
+        # If the frontend sent a specific sample_id, find that exact sample
+        cursor.execute(
+            "SELECT id FROM samples WHERE id = ? AND patient_ref = ?", 
+            (data.sample_id, patient_id)
+        )
+        sample = cursor.fetchone()
+    else:
+        # Fallback: If no sample_id was sent, just grab the first sample attached to the patient
+        cursor.execute(
+            "SELECT id FROM samples WHERE patient_ref = ? ORDER BY id ASC LIMIT 1",
+            (patient_id,)
+        )
+        sample = cursor.fetchone()
 
+    # If a valid sample was found, update its fields
     if sample:
         cursor.execute("""
             UPDATE samples SET
@@ -169,7 +214,7 @@ def update_patient(patient_id: int, data: PatientUpdate):
             data.din,
             data.research_report,
             data.sequencing_partner,
-            normalize_date(data.data_received),
+            normalize_date(data.data_received) if data.data_received else None,
             data.tmr_e,
             data.data_analysed_som,
             data.data_analysed_germ,
@@ -183,7 +228,7 @@ def update_patient(patient_id: int, data: PatientUpdate):
 
     conn.commit()
 
-    # Return updated patient + samples
+    # Return updated patient + all of their samples
     cursor.execute("SELECT * FROM patients WHERE id = ?", (patient_id,))
     updated_patient = dict(cursor.fetchone())
 
@@ -195,6 +240,114 @@ def update_patient(patient_id: int, data: PatientUpdate):
         "patient": updated_patient,
         "samples": updated_samples,
     }
+
+# def update_patient(patient_id: int, data: PatientUpdate):
+#     conn = get_connection()
+#     cursor = conn.cursor()
+
+#     # Check patient exists
+#     cursor.execute("SELECT id FROM patients WHERE id = ?", (patient_id,))
+#     if not cursor.fetchone():
+#         conn.close()
+#         raise HTTPException(status_code=404, detail="Patient not found")
+
+#     # Update patients table
+#     cursor.execute("""
+#         UPDATE patients SET
+#             aob_id = ?,
+#             sid = ?,
+#             name = ?,
+#             age = ?,
+#             gender = ?,
+#             detail_disease = ?,
+#             organ_type = ?,
+#             comorbidity = ?,
+#             family_history = ?,
+#             metastasis = ?,
+#             patient_status = ?,
+#             consultation = ?
+#         WHERE id = ?
+#     """, (
+#         data.aob_id,
+#         data.sid,
+#         data.name,
+#         data.age,
+#         data.gender,
+#         data.detail_disease,
+#         data.organ_type,
+#         data.comorbidity,
+#         data.family_history,
+#         data.metastasis,
+#         data.patient_status,
+#         data.consultation,
+#         patient_id,
+#     ))
+
+#     # Update the first/primary sample if one exists
+#     cursor.execute(
+#         "SELECT id FROM samples WHERE patient_ref = ? ORDER BY id ASC LIMIT 1",
+#         (patient_id,)
+#     )
+#     sample = cursor.fetchone()
+
+#     if sample:
+#         cursor.execute("""
+#             UPDATE samples SET
+#                 new_case_label = ?,
+#                 additional = ?,
+#                 source = ?,
+#                 sample_collection_date = ?,
+#                 dna_availability = ?,
+#                 sequencing = ?,
+#                 din = ?,
+#                 research_report = ?,
+#                 sequencing_partner = ?,
+#                 data_received = ?,
+#                 tmr_e = ?,
+#                 data_analysed_som = ?,
+#                 data_analysed_germ = ?,
+#                 sample_labeling = ?,
+#                 analysis = ?,
+#                 report_status = ?,
+#                 report_release_date = ?,
+#                 comments = ?
+#             WHERE id = ?
+#         """, (
+#             data.new_case_label,
+#             data.additional,
+#             data.source,
+#             data.sample_collection_date,
+#             data.dna_availability,
+#             data.sequencing,
+#             data.din,
+#             data.research_report,
+#             data.sequencing_partner,
+#             normalize_date(data.data_received),
+#             data.tmr_e,
+#             data.data_analysed_som,
+#             data.data_analysed_germ,
+#             data.sample_labeling,
+#             data.analysis,
+#             data.report_status,
+#             data.report_release_date,
+#             data.comments,
+#             sample["id"],
+#         ))
+
+#     conn.commit()
+
+#     # Return updated patient + samples
+#     cursor.execute("SELECT * FROM patients WHERE id = ?", (patient_id,))
+#     updated_patient = dict(cursor.fetchone())
+
+#     cursor.execute("SELECT * FROM samples WHERE patient_ref = ?", (patient_id,))
+#     updated_samples = [dict(s) for s in cursor.fetchall()]
+
+#     conn.close()
+#     return {
+#         "patient": updated_patient,
+#         "samples": updated_samples,
+#     }
 
 
 

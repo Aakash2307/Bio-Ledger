@@ -22,6 +22,7 @@ skipped_patients = 0
 inserted_patients = 0
 inserted_samples = 0
 skipped_samples = 0
+inserted_records = 0
 
 for _, row in df.iterrows():
 
@@ -30,30 +31,26 @@ for _, row in df.iterrows():
         continue
 
     patient_id_value = clean_value(row.get("Patient ID"))
-    sid_value = clean_value(row.get("SID"))  # grab SID once, reuse for both tables
+    sid_value = clean_value(row.get("SID"))
 
+    # ── 1. PATIENTS ──────────────────────────────────────────
     cursor.execute("SELECT id FROM patients WHERE patient_id = ?", (patient_id_value,))
     existing_patient = cursor.fetchone()
 
     if existing_patient:
         patient_db_id = existing_patient["id"]
-        # If patient already exists, fetch their SID so samples still get it
-        cursor.execute("SELECT sid FROM patients WHERE id = ?", (patient_db_id,))
-        existing_sid = cursor.fetchone()
-        sid_value = existing_sid["sid"] if existing_sid else sid_value
     else:
         cursor.execute("""
             INSERT INTO patients (
-                patient_id, aob_id, sid, name, age, gender,
+                patient_id, aob_id, name, age, gender,
                 detail_disease, organ_type,
                 comorbidity, family_history,
                 metastasis, patient_status, consultation
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             patient_id_value,
             clean_value(row.get("AOB ID")),
-            sid_value,
             clean_value(row.get("Name")),
             clean_value(row.get("Age")),
             clean_value(row.get("Gender")),
@@ -68,47 +65,63 @@ for _, row in df.iterrows():
         patient_db_id = cursor.lastrowid
         inserted_patients += 1
 
-    new_case_label = clean_value(row.get("New Case label"))
-
-    if new_case_label:
-        cursor.execute("""
-            INSERT INTO samples (
-                patient_ref, sid, new_case_label, additional, source,
-                sample_collection_date, dna_availability,
-                sequencing, din, research_report,
-                sequencing_partner, data_received,
-                tmr_e, data_analysed_som,
-                data_analysed_germ,
-                sample_labeling, analysis,
-                report_status, report_release_date,
-                comments
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            patient_db_id,
-            sid_value,          # ← sid copied from patient into sample
-            new_case_label,
-            clean_value(row.get("Additional")),
-            clean_value(row.get("Source")),
-            clean_value(row.get("Sample Collection Date")),
-            clean_value(row.get("DNA availability")),
-            clean_value(row.get("Sequencing")),
-            clean_value(row.get("DIN")),
-            clean_value(row.get("Research/Report")),
-            clean_value(row.get("Sequencing partner (E)")),
-            clean_value(row.get("Data received (E)")),
-            clean_value(row.get("TMR-E  (Gbp)")),
-            clean_value(row.get("Data analysed-E (Som)")),
-            clean_value(row.get("Data analysed-E (Germ)")),
-            clean_value(row.get("Sample lebeling")),
-            clean_value(row.get("Analysis")),
-            clean_value(row.get("Report (made/release)")),
-            clean_value(row.get("Report Release Date")),
-            clean_value(row.get("Comments (report sample ID)")),
-        ))
-        inserted_samples += 1
-    else:
+    # ── 2. SAMPLES (SID) ─────────────────────────────────────
+    if not sid_value:
         skipped_samples += 1
+        continue
+
+    cursor.execute("SELECT id FROM samples WHERE sid = ?", (sid_value,))
+    existing_sample = cursor.fetchone()
+
+    if existing_sample:
+        sample_db_id = existing_sample["id"]
+    else:
+        cursor.execute("""
+            INSERT INTO samples (patient_ref, sid)
+            VALUES (?, ?)
+        """, (patient_db_id, sid_value))
+        sample_db_id = cursor.lastrowid
+        inserted_samples += 1
+
+    # ── 3. SAMPLE RECORDS (all test data) ────────────────────
+    cursor.execute("""
+        INSERT INTO sample_records (
+            sample_ref,
+            new_case_label, additional, source,
+            sample_collection_date, dna_availability,
+            sequencing, din, research_report,
+            sequencing_partner, data_received,
+            tmr_e, old_gbp, gbp,
+            data_analysed_som, data_analysed_germ,
+            sample_labeling, analysis,
+            report_status, report_release_date,
+            comments
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        sample_db_id,
+        clean_value(row.get("New Case label")),
+        clean_value(row.get("Additional")),
+        clean_value(row.get("Source")),
+        clean_value(row.get("Sample Collection Date")),
+        clean_value(row.get("DNA availability")),
+        clean_value(row.get("Sequencing")),
+        clean_value(row.get("DIN")),
+        clean_value(row.get("Research/Report")),
+        clean_value(row.get("Sequencing partner (E)")),
+        clean_value(row.get("Data received (E)")),
+        clean_value(row.get("TMR-E")),
+        clean_value(row.get("old_gbp")),
+        clean_value(row.get("Gbp")),
+        clean_value(row.get("Data analysed-E (Som)")),
+        clean_value(row.get("Data analysed-E (Germ)")),
+        clean_value(row.get("Sample labeling")),
+        clean_value(row.get("Analysis")),
+        clean_value(row.get("Report (made/release)")),
+        clean_value(row.get("Report Release Date")),
+        clean_value(row.get("Comments (report sample ID)")),
+    ))
+    inserted_records += 1
 
 conn.commit()
 conn.close()
@@ -117,4 +130,5 @@ print(f"✅ Import complete!")
 print(f"   Patients inserted : {inserted_patients}")
 print(f"   Patients skipped  : {skipped_patients} (no Patient ID)")
 print(f"   Samples inserted  : {inserted_samples}")
-print(f"   Samples skipped   : {skipped_samples} (no Case Label)")
+print(f"   Sample records    : {inserted_records}")
+print(f"   Skipped           : {skipped_samples} (no SID)")

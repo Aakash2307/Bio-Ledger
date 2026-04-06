@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getPatientDetails, updatePatient } from "../api";
+import { getPatientDetails, updatePatientWithSample } from "../api";
 import logo from "../assets/tzarnewlogo.png";
 
 // ─── Status config ────────────────────────────────────────────────────────────
@@ -115,7 +115,9 @@ function FieldGrid({ children }) {
 }
 
 function FieldItem({ label, value, mono = false, wide = false }) {
-  if (value === undefined || value === null || value === "" || value === "-") return null;
+  const display = (value === undefined || value === null || value === "" || value === "-")
+    ? "—"
+    : String(value);
   return (
     <div style={{ gridColumn: wide ? "1 / -1" : "auto" }}>
       <div
@@ -140,7 +142,7 @@ function FieldItem({ label, value, mono = false, wide = false }) {
           wordBreak: "break-word",
         }}
       >
-        {String(value)}
+        {display}
       </div>
     </div>
   );
@@ -394,6 +396,8 @@ export default function ViewPatientPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
+  const [sampleId, setSampleId] = useState(null);
+  const [recordId, setRecordId] = useState(null);
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -407,12 +411,16 @@ export default function ViewPatientPage() {
       try {
         const data = await getPatientDetails(id);
         const patientData = data.patient;
-        const sampleData = data.samples && data.samples.length > 0 ? data.samples[0] : {};
+        const sampleRow   = data.samples && data.samples.length > 0 ? data.samples[0] : {};
+        const recordData  = sampleRow.records && sampleRow.records.length > 0 ? sampleRow.records[0] : {};
+
+        // Store IDs needed for the update call
+        setSampleId(sampleRow.id ?? null);
+        setRecordId(recordData.id ?? null);
 
         setPatient(patientData);
-        setSample(sampleData);
-        // ✅ Merge both into form with all fields properly initialized
-        setForm({ ...patientData, ...sampleData });
+        setSample(recordData);  // sample sections display from record fields
+        setForm({ ...patientData, sid: sampleRow.sid || "", ...recordData });
       } catch (err) {
         console.error(err);
         setError("Could not load patient details. Please try again.");
@@ -428,36 +436,68 @@ export default function ViewPatientPage() {
   const handleEdit = () => setEditing(true);
 
   const handleCancel = () => {
-    // ✅ Reset form to original data
-    setForm({ ...patient, ...sample });
+    setForm({ ...patient, sid: form?.sid || "", ...sample });
     setEditing(false);
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      // ✅ Build clean payload with only changed fields
-      const payload = { ...form };
+      const payload = {
+        // Patient fields
+        aob_id:          form.aob_id || null,
+        name:            form.name || null,
+        age:             form.age ? Number(form.age) : null,
+        gender:          form.gender || null,
+        detail_disease:  form.detail_disease || null,
+        organ_type:      form.organ_type || null,
+        comorbidity:     form.comorbidity || null,
+        family_history:  form.family_history || null,
+        metastasis:      form.metastasis || null,
+        patient_status:  form.patient_status || null,
+        consultation:    form.consultation || null,
+        // Sample + record IDs for targeting the right rows
+        sample_id:       sampleId,
+        record_id:       recordId,
+        sid:             form.sid || null,
+        // Record fields
+        new_case_label:         form.new_case_label || null,
+        additional:             form.additional || null,
+        source:                 form.source || null,
+        sample_collection_date: form.sample_collection_date || null,
+        dna_availability:       form.dna_availability || null,
+        sequencing:             form.sequencing || null,
+        din:                    form.din || null,
+        research_report:        form.research_report || null,
+        sequencing_partner:     form.sequencing_partner || null,
+        data_received:          form.data_received || null,
+        tmr_e:                  form.tmr_e ? Number(form.tmr_e) : null,
+        old_gbp:                form.old_gbp ? Number(form.old_gbp) : null,
+        gbp:                    form.gbp ? Number(form.gbp) : null,
+        data_analysed_som:      form.data_analysed_som || null,
+        data_analysed_germ:     form.data_analysed_germ || null,
+        sample_labeling:        form.sample_labeling || null,
+        analysis:               form.analysis || null,
+        report_status:          form.report_status || null,
+        report_release_date:    form.report_release_date || null,
+        comments:               form.comments || null,
+      };
 
-      // Remove empty strings to avoid cluttering database
-      Object.keys(payload).forEach((key) => {
-        if (payload[key] === "") {
-          delete payload[key];
-        }
-      });
+      const updated = await updatePatientWithSample(id, payload);
 
-      const updated = await updatePatient(id, payload);
-      const updatedPatient = updated?.patient || form;
-      const updatedSample = updated?.sample || form;
+      // Backend returns { patient: {...}, samples: [{...records:[...]}] }
+      const updatedPatient = updated?.patient || patient;
+      const updatedSampleRow = updated?.samples?.[0] || {};
+      const updatedRecord  = updatedSampleRow?.records?.[0] || {};
 
       setPatient(updatedPatient);
-      setSample(updatedSample);
-      setForm({ ...updatedPatient, ...updatedSample });
+      setSample(updatedRecord);
+      setForm({ ...updatedPatient, sid: updatedSampleRow.sid || form.sid || "", ...updatedRecord });
       setEditing(false);
       showToast("Patient updated successfully");
     } catch (err) {
       console.error(err);
-      showToast("Failed to update patient. Please try again.", "error");
+      showToast(err.message || "Failed to update patient. Please try again.", "error");
     } finally {
       setSaving(false);
     }

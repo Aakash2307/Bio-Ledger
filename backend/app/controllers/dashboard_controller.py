@@ -6,89 +6,91 @@ def get_dashboard_summary(period: str = "all"):
     conn = get_connection()
     cursor = conn.cursor()
 
-    # ── Build date filter based on period ──
-    # period = "all" | "YYYY-MM" (month) | "YYYY" (year)
+    # ── Date filter ──────────────────────────────────────────────────────────
     if len(period) == 7 and "-" in period:
         yr, mo = period.split("-")
         next_mo = f"{yr}-{int(mo)+1:02d}" if int(mo) < 12 else f"{int(yr)+1}-01"
-        date_filter = (
-            f"AND {to_iso_sql('s.data_received')} >= '{period}-01' "
-            f"AND {to_iso_sql('s.data_received')} < '{next_mo}-01'"
+        record_date_filter = (
+            f"AND {to_iso_sql('sr.data_received')} >= '{period}-01' "
+            f"AND {to_iso_sql('sr.data_received')} < '{next_mo}-01'"
         )
         patient_date_filter = f"""
             AND id IN (
-                SELECT patient_ref FROM samples
-                WHERE {to_iso_sql('data_received')} >= '{period}-01'
-                AND {to_iso_sql('data_received')} < '{next_mo}-01'
+                SELECT s.patient_ref FROM samples s
+                JOIN sample_records sr ON sr.sample_ref = s.id
+                WHERE {to_iso_sql('sr.data_received')} >= '{period}-01'
+                AND {to_iso_sql('sr.data_received')} < '{next_mo}-01'
             )
         """
     elif len(period) == 4 and period.isdigit():
-        date_filter = (
-            f"AND {to_iso_sql('s.data_received')} >= '{period}-01-01' "
-            f"AND {to_iso_sql('s.data_received')} < '{int(period)+1}-01-01'"
+        record_date_filter = (
+            f"AND {to_iso_sql('sr.data_received')} >= '{period}-01-01' "
+            f"AND {to_iso_sql('sr.data_received')} < '{int(period)+1}-01-01'"
         )
         patient_date_filter = f"""
             AND id IN (
-                SELECT patient_ref FROM samples
-                WHERE {to_iso_sql('data_received')} >= '{period}-01-01'
-                AND {to_iso_sql('data_received')} < '{int(period)+1}-01-01'
+                SELECT s.patient_ref FROM samples s
+                JOIN sample_records sr ON sr.sample_ref = s.id
+                WHERE {to_iso_sql('sr.data_received')} >= '{period}-01-01'
+                AND {to_iso_sql('sr.data_received')} < '{int(period)+1}-01-01'
             )
         """
     else:
-        date_filter = ""
+        record_date_filter = ""
         patient_date_filter = ""
 
-    # ── Total patients ──
+    # ── Total patients ────────────────────────────────────────────────────────
     cursor.execute(f"SELECT COUNT(*) as count FROM patients WHERE 1=1 {patient_date_filter}")
     total_patients = cursor.fetchone()["count"]
 
-    # ── Total samples ──
-    cursor.execute(f"SELECT COUNT(*) as count FROM samples s WHERE 1=1 {date_filter}")
+    # ── Total samples (SID level) ─────────────────────────────────────────────
+    cursor.execute("SELECT COUNT(*) as count FROM samples")
     total_samples = cursor.fetchone()["count"]
 
-    # ── Sequenced samples ──
+    # ── Sequenced records ─────────────────────────────────────────────────────
     cursor.execute(f"""
-        SELECT COUNT(*) as count FROM samples s
+        SELECT COUNT(*) as count FROM sample_records sr
         WHERE sequencing IS NOT NULL AND sequencing != ''
-        {date_filter}
+        {record_date_filter}
     """)
     sequenced_samples = cursor.fetchone()["count"]
 
-    # ── Case label distribution ──
+    # ── Case label distribution ───────────────────────────────────────────────
     cursor.execute(f"""
         SELECT new_case_label, COUNT(*) as count
-        FROM samples s
-        WHERE 1=1 {date_filter}
+        FROM sample_records sr
+        WHERE 1=1 {record_date_filter}
         GROUP BY new_case_label
     """)
     case_counts = {row["new_case_label"]: row["count"] for row in cursor.fetchall()}
 
-    # ── Organ type distribution (non-benign) ──
+    # ── Organ type distribution (non-benign) ──────────────────────────────────
     cursor.execute(f"""
-        SELECT p.organ_type, COUNT(s.id) as count
-        FROM samples s
+        SELECT p.organ_type, COUNT(sr.id) as count
+        FROM sample_records sr
+        JOIN samples s ON sr.sample_ref = s.id
         JOIN patients p ON s.patient_ref = p.id
         WHERE p.organ_type IS NOT NULL AND p.organ_type != ''
-        AND s.new_case_label != 'Benign'
-        {date_filter}
+        AND sr.new_case_label != 'Benign'
+        {record_date_filter}
         GROUP BY p.organ_type
     """)
     organ_counts = {row["organ_type"]: row["count"] for row in cursor.fetchall()}
 
-    # ── Benign organ distribution ──
+    # ── Benign organ distribution ─────────────────────────────────────────────
     cursor.execute(f"""
-        SELECT p.organ_type, COUNT(s.id) as count
-        FROM samples s
+        SELECT p.organ_type, COUNT(sr.id) as count
+        FROM sample_records sr
+        JOIN samples s ON sr.sample_ref = s.id
         JOIN patients p ON s.patient_ref = p.id
-        WHERE s.new_case_label = 'Benign'
+        WHERE sr.new_case_label = 'Benign'
         AND p.organ_type IS NOT NULL AND p.organ_type != ''
-        {date_filter}
+        {record_date_filter}
         GROUP BY p.organ_type
     """)
     benign_organ_counts = {row["organ_type"]: row["count"] for row in cursor.fetchall()}
 
     conn.close()
-
     return {
         "total_patients": total_patients,
         "total_samples": total_samples,
@@ -108,10 +110,11 @@ def get_patient_summary():
             p.id,
             p.patient_id,
             p.name,
-            COUNT(s.id) as total_samples,
-            MAX(s.sample_collection_date) as latest_sample_date
+            COUNT(DISTINCT s.id) as total_samples,
+            MAX(sr.sample_collection_date) as latest_sample_date
         FROM patients p
         LEFT JOIN samples s ON p.id = s.patient_ref
+        LEFT JOIN sample_records sr ON sr.sample_ref = s.id
         GROUP BY p.id
     """)
 
@@ -120,10 +123,11 @@ def get_patient_summary():
 
     for patient in patients:
         cursor.execute("""
-            SELECT new_case_label, COUNT(*) as count
-            FROM samples
-            WHERE patient_ref = ?
-            GROUP BY new_case_label
+            SELECT sr.new_case_label, COUNT(*) as count
+            FROM sample_records sr
+            JOIN samples s ON sr.sample_ref = s.id
+            WHERE s.patient_ref = ?
+            GROUP BY sr.new_case_label
         """, (patient["id"],))
 
         case_breakdown = {

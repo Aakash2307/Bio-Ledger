@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { addPatient, updatePatient } from "../api";
+import { addPatientWithSample, updatePatientWithSample, getPatientDetails } from "../api";
 import logo from "../assets/tzarnewlogo.png";
 
 const STEPS = [
@@ -18,18 +18,32 @@ const EMPTY_FORM = {
   aob_id: "",
   sid: "",
   new_case_label: "",
-  disease_type: "",
+  detail_disease: "",       // was: disease_type
+  organ_type: "",
   comorbidity: "",
   family_history: "",
   metastasis: "",
   patient_status: "",
+  consultation: "",
   sample_collection_date: "",
   dna_availability: "",
   sequencing: "",
   data_received: "",
   tmr_e: "",
-  data_analysed: "",
-  sample_leveling: "",
+  data_analysed_som: "",    // was: data_analysed
+  data_analysed_germ: "",   // new field
+  sample_labeling: "",      // was: sample_leveling
+  analysis: "",
+  report_status: "",
+  report_release_date: "",
+  comments: "",
+  source: "",
+  din: "",
+  research_report: "",
+  sequencing_partner: "",
+  additional: "",
+  old_gbp: "",
+  gbp: "",
 };
 
 const EMPTY_FILES = {
@@ -440,10 +454,9 @@ function Step2({ form, set }) {
         </Field>
         <Field label="Disease Type">
           <TextInput
-            value={form.disease_type}
-            onChange={(v) => set("disease_type", v)}
+            value={form.detail_disease}
+            onChange={(v) => set("detail_disease", v)}
             placeholder="Write type"
-            // options={["Oncology", "Cardiology", "Neurology", "Rare Disease", "Other"]}
           />
         </Field>
       </div>
@@ -526,20 +539,29 @@ function Step3({ form, set }) {
             type="number"
           />
         </Field>
-        <Field label="Data Analysed">
+        <div />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <Field label="Data Analysed (Somatic)">
           <RadioGroup
-            value={form.data_analysed}
-            onChange={(v) => set("data_analysed", v)}
+            value={form.data_analysed_som}
+            onChange={(v) => set("data_analysed_som", v)}
+            options={["Yes", "No"]}
+          />
+        </Field>
+        <Field label="Data Analysed (Germline)">
+          <RadioGroup
+            value={form.data_analysed_germ}
+            onChange={(v) => set("data_analysed_germ", v)}
             options={["Yes", "No"]}
           />
         </Field>
       </div>
-      <Field label="Sample Leveling">
+      <Field label="Sample Labeling">
         <TextInput
-          value={form.sample_leveling}
-          onChange={(v) => set("sample_leveling", v)}
-          placeholder="Select level"
-          // options={["Level 1", "Level 2", "Level 3", "Not Done"]}
+          value={form.sample_labeling}
+          onChange={(v) => set("sample_labeling", v)}
+          placeholder="e.g. Level 1"
         />
       </Field>
     </div>
@@ -638,25 +660,26 @@ function Step4({ files, setFile }) {
 // ─── FIX: Expanded SuccessScreen showing all saved fields ────────────────────
 function SuccessScreen({ patient, files, isEditing, onAddAnother, onGoToRecords }) {
   const summaryFields = [
-    ["Patient ID",        patient?.patient_id || "—"],
-    ["Name",              patient?.name || "—"],
-    ["AOB ID",            patient?.aob_id || "—"],
-    ["SID",               patient?.sid || "—"],
-    ["Age",               patient?.age ?? "—"],
-    ["Gender",            patient?.gender || "—"],
-    ["Case Label",        patient?.new_case_label || "—"],
-    ["Disease Type",      patient?.disease_type || "—"],
-    ["Comorbidity",       patient?.comorbidity || "—"],
-    ["Family History",    patient?.family_history || "—"],
-    ["Metastasis",        patient?.metastasis || "—"],
-    ["Status",            patient?.patient_status || "—"],
-    ["Collection Date",   patient?.sample_collection_date || "—"],
-    ["DNA Availability",  patient?.dna_availability || "—"],
-    ["Sequencing",        patient?.sequencing || "—"],
-    ["Data Received",     patient?.data_received || "—"],
-    ["TMR-E (Gbp)",       patient?.tmr_e ?? "—"],
-    ["Data Analysed",     patient?.data_analysed || "—"],
-    ["Sample Leveling",   patient?.sample_leveling || "—"],
+    ["Patient ID",             patient?.patient_id || "—"],
+    ["Name",                   patient?.name || "—"],
+    ["AOB ID",                 patient?.aob_id || "—"],
+    ["SID",                    patient?.sid || "—"],
+    ["Age",                    patient?.age ?? "—"],
+    ["Gender",                 patient?.gender || "—"],
+    ["Case Label",             patient?.new_case_label || "—"],
+    ["Disease Type",           patient?.detail_disease || "—"],
+    ["Comorbidity",            patient?.comorbidity || "—"],
+    ["Family History",         patient?.family_history || "—"],
+    ["Metastasis",             patient?.metastasis || "—"],
+    ["Status",                 patient?.patient_status || "—"],
+    ["Collection Date",        patient?.sample_collection_date || "—"],
+    ["DNA Availability",       patient?.dna_availability || "—"],
+    ["Sequencing",             patient?.sequencing || "—"],
+    ["Data Received",          patient?.data_received || "—"],
+    ["TMR-E (Gbp)",            patient?.tmr_e ?? "—"],
+    ["Data Analysed (Som)",    patient?.data_analysed_som || "—"],
+    ["Data Analysed (Germ)",   patient?.data_analysed_germ || "—"],
+    ["Sample Labeling",        patient?.sample_labeling || "—"],
   ];
 
   const monoFields = ["Patient ID", "AOB ID", "SID"];
@@ -870,33 +893,56 @@ export default function AddPatientPage() {
   const [submitted, setSubmitted] = useState(false);
   const [savedPatient, setSavedPatient] = useState(null);
   const [loading, setLoading] = useState(isEditing);
+  const [editSampleId, setEditSampleId] = useState(null);
+  const [editRecordId, setEditRecordId] = useState(null);
 
   useEffect(() => {
     if (isEditing && patientId) {
       setLoading(true);
-      fetch(`/api/patients/${patientId}`)
-        .then((res) => res.json())
-        .then((patient) => {
+      getPatientDetails(patientId)
+        .then((data) => {
+          const patient = data.patient || {};
+          const sample  = data.samples?.[0] || {};
+          const record  = sample.records?.[0] || {};
+
+          // Store IDs needed for the PUT /with-sample call
+          setEditSampleId(sample.id ?? null);
+          setEditRecordId(record.id ?? null);
+
           setForm({
-            patient_id: patient.patient_id || "",
-            name: patient.name || "",
-            age: patient.age || "",
-            gender: patient.gender || "",
-            aob_id: patient.aob_id || "",
-            sid: patient.sid || "",
-            new_case_label: patient.new_case_label || "",
-            disease_type: patient.disease_type || "",
-            comorbidity: patient.comorbidity || "",
-            family_history: patient.family_history || "",
-            metastasis: patient.metastasis || "",
-            patient_status: patient.patient_status || "",
-            sample_collection_date: patient.sample_collection_date || "",
-            dna_availability: patient.dna_availability || "",
-            sequencing: patient.sequencing || "",
-            data_received: patient.data_received || "",
-            tmr_e: patient.tmr_e || "",
-            data_analysed: patient.data_analysed || "",
-            sample_leveling: patient.sample_leveling || "",
+            patient_id:             patient.patient_id || "",
+            name:                   patient.name || "",
+            age:                    patient.age || "",
+            gender:                 patient.gender || "",
+            aob_id:                 patient.aob_id || "",
+            organ_type:             patient.organ_type || "",
+            detail_disease:         patient.detail_disease || "",
+            comorbidity:            patient.comorbidity || "",
+            family_history:         patient.family_history || "",
+            metastasis:             patient.metastasis || "",
+            patient_status:         patient.patient_status || "",
+            consultation:           patient.consultation || "",
+            sid:                    sample.sid || "",
+            new_case_label:         record.new_case_label || "",
+            additional:             record.additional || "",
+            source:                 record.source || "",
+            sample_collection_date: record.sample_collection_date || "",
+            dna_availability:       record.dna_availability || "",
+            sequencing:             record.sequencing || "",
+            din:                    record.din || "",
+            research_report:        record.research_report || "",
+            sequencing_partner:     record.sequencing_partner || "",
+            data_received:          record.data_received || "",
+            tmr_e:                  record.tmr_e || "",
+            old_gbp:                record.old_gbp || "",
+            gbp:                    record.gbp || "",
+            data_analysed_som:      record.data_analysed_som || "",
+            data_analysed_germ:     record.data_analysed_germ || "",
+            sample_labeling:        record.sample_labeling || "",
+            analysis:               record.analysis || "",
+            report_status:          record.report_status || "",
+            report_release_date:    record.report_release_date || "",
+            comments:               record.comments || "",
           });
           setSavedPatient(patient);
           setLoading(false);
@@ -943,48 +989,59 @@ export default function AddPatientPage() {
     setSubmitError(null);
     try {
       const payload = {
-        patient_id: form.patient_id,
-        name: form.name,
-        age: form.age,
-        gender: form.gender,
-        aob_id: form.aob_id,
-        sid: form.sid,
-        new_case_label: form.new_case_label,
-        disease_type: form.disease_type,
-        comorbidity: form.comorbidity,
-        family_history: form.family_history,
-        metastasis: form.metastasis,
-        patient_status: form.patient_status,
-        sample_collection_date: form.sample_collection_date,
-        dna_availability: form.dna_availability,
-        sequencing: form.sequencing,
-        data_received: form.data_received,
-        tmr_e: form.tmr_e,
-        data_analysed: form.data_analysed,
-        sample_leveling: form.sample_leveling,
+        // Patient fields
+        patient_id:             form.patient_id,
+        name:                   form.name,
+        age:                    form.age ? Number(form.age) : null,
+        gender:                 form.gender || null,
+        aob_id:                 form.aob_id || null,
+        detail_disease:         form.detail_disease || null,
+        organ_type:             form.organ_type || null,
+        comorbidity:            form.comorbidity || null,
+        family_history:         form.family_history || null,
+        metastasis:             form.metastasis || null,
+        patient_status:         form.patient_status || null,
+        consultation:           form.consultation || null,
+        // Sample fields
+        sid:                    form.sid || null,
+        // Sample record fields
+        new_case_label:         form.new_case_label || null,
+        additional:             form.additional || null,
+        source:                 form.source || null,
+        sample_collection_date: form.sample_collection_date || null,
+        dna_availability:       form.dna_availability || null,
+        sequencing:             form.sequencing || null,
+        din:                    form.din || null,
+        research_report:        form.research_report || null,
+        sequencing_partner:     form.sequencing_partner || null,
+        data_received:          form.data_received || null,
+        tmr_e:                  form.tmr_e ? Number(form.tmr_e) : null,
+        old_gbp:                form.old_gbp ? Number(form.old_gbp) : null,
+        gbp:                    form.gbp ? Number(form.gbp) : null,
+        data_analysed_som:      form.data_analysed_som || null,
+        data_analysed_germ:     form.data_analysed_germ || null,
+        sample_labeling:        form.sample_labeling || null,
+        analysis:               form.analysis || null,
+        report_status:          form.report_status || null,
+        report_release_date:    form.report_release_date || null,
+        comments:               form.comments || null,
       };
-
-      // ─── FIX: Only null-out optional empty fields, never required ones ───
-      const REQUIRED_FIELDS = ["patient_id", "sid"];
-      Object.keys(payload).forEach((key) => {
-        if (payload[key] === "" && !REQUIRED_FIELDS.includes(key)) {
-          payload[key] = null;
-        }
-      });
 
       let result;
       if (isEditing) {
-        result = await updatePatient(patientId, payload);
+        // Include IDs so backend knows which rows to update
+        payload.sample_id = editSampleId;
+        payload.record_id = editRecordId;
+        result = await updatePatientWithSample(patientId, payload);
       } else {
-        result = await addPatient(payload);
+        result = await addPatientWithSample(payload);
       }
 
-      // ─── FIX: Fall back to the local form so success screen always has data ─
       setSavedPatient(result || { ...form });
       setSubmitted(true);
     } catch (err) {
       console.error(err);
-      setSubmitError("Failed to save patient. Please check the API and try again.");
+      setSubmitError(err.message || "Failed to save patient. Please check the API and try again.");
     } finally {
       setSubmitting(false);
     }

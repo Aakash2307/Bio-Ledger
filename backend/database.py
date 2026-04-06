@@ -6,10 +6,7 @@ DB_NAME = "patients.db"
 def get_connection():
     conn = sqlite3.connect(DB_NAME)
     conn.row_factory = sqlite3.Row
-
-    # Enforce foreign key constraints in SQLite
     conn.execute("PRAGMA foreign_keys = ON")
-
     return conn
 
 
@@ -17,14 +14,15 @@ def create_tables():
     conn = get_connection()
     cursor = conn.cursor()
 
-    # ------------------ Patients Table ------------------
+    # =========================
+    # PATIENTS
+    # =========================
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS patients (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         patient_id TEXT UNIQUE NOT NULL,
         aob_id TEXT,
-        sid TEXT,
-        name TEXT NOT NULL,
+        name TEXT,
         age INTEGER,
         gender TEXT,
         detail_disease TEXT,
@@ -38,12 +36,32 @@ def create_tables():
     )
     """)
 
-    # ------------------ Samples Table ------------------
+    # =========================
+    # SAMPLES (SID = UNIQUE)
+    # =========================
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS samples (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         patient_ref INTEGER NOT NULL,
-        new_case_label TEXT  NULL,
+        sid TEXT NOT NULL UNIQUE,
+
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+        FOREIGN KEY (patient_ref)
+            REFERENCES patients(id)
+            ON DELETE CASCADE
+    )
+    """)
+
+    # =========================
+    # SAMPLE RECORDS (ALL DATA)
+    # =========================
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS sample_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sample_ref INTEGER NOT NULL,
+
+        new_case_label TEXT,
         additional TEXT,
         source TEXT,
         sample_collection_date TEXT,
@@ -54,6 +72,8 @@ def create_tables():
         sequencing_partner TEXT,
         data_received TEXT,
         tmr_e REAL,
+        old_gbp REAL,
+        gbp REAL,
         data_analysed_som TEXT,
         data_analysed_germ TEXT,
         sample_labeling TEXT,
@@ -61,25 +81,21 @@ def create_tables():
         report_status TEXT,
         report_release_date TEXT,
         comments TEXT,
+
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-        FOREIGN KEY (patient_ref)
-            REFERENCES patients(id)
+        FOREIGN KEY (sample_ref)
+            REFERENCES samples(id)
             ON DELETE CASCADE
     )
     """)
 
-    # ------------------ Indexes (Important for Dashboard) ------------------
-
-    cursor.execute("""
-    CREATE INDEX IF NOT EXISTS idx_samples_patient_ref
-    ON samples(patient_ref)
-    """)
-
-    cursor.execute("""
-    CREATE INDEX IF NOT EXISTS idx_samples_case_label
-    ON samples(new_case_label)
-    """)
+    # =========================
+    # INDEXES
+    # =========================
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_patients_patient_id ON patients(patient_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_samples_sid ON samples(sid)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_records_sample_ref ON sample_records(sample_ref)")
 
     conn.commit()
     conn.close()
@@ -87,4 +103,4 @@ def create_tables():
 
 if __name__ == "__main__":
     create_tables()
-    print("Database tables created successfully.")
+    print("✅ Database ready.")

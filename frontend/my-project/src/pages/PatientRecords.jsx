@@ -69,32 +69,7 @@ function DetailRow({ label, value }) {
   );
 }
 
-// ─── Deduplicate JOIN rows → one patient, samples array ──────────────────────
-function deduplicatePatients(rows) {
-  const map = {};
-  for (const row of rows) {
-    const key = row.id;
-    if (!map[key]) {
-      map[key] = {
-        ...row,
-        samples: [] // Create an array of sample objects
-      };
-    }
-    // If the join returned a sample, push the details
-    if (row.sample_id) {
-      if (!map[key].samples.find(s => s.sample_id === row.sample_id)) {
-        map[key].samples.push({
-          sample_id: row.sample_id,
-          new_case_label: row.new_case_label,
-          sequencing: row.sequencing,
-          dna_availability: row.dna_availability,
-          report_status: row.report_status
-        });
-      }
-    }
-  }
-  return Object.values(map);
-}
+// Backend returns already-grouped patients with total_samples count
 
 // ─── Chevron icon ─────────────────────────────────────────────────────────────
 function Chevron({ open }) {
@@ -130,6 +105,90 @@ function TrashIcon({ style }) {
   );
 }
 
+// ─── Expanded samples panel — loads full detail on first expand ───────────────
+function ExpandedSamples({ patientId, selectedSample, onOpenSample, navigate }) {
+  const [samples, setSamples] = React.useState(null);
+
+  React.useEffect(() => {
+    getPatientDetails(patientId)
+      .then(data => {
+        const rows = [];
+        (data.samples || []).forEach(s => {
+          if (s.records && s.records.length > 0) {
+            s.records.forEach(r => {
+              rows.push({ sampleId: s.id, sid: s.sid, recordId: r.id, ...r });
+            });
+          } else {
+            // SID exists but has no records yet
+            rows.push({ sampleId: s.id, sid: s.sid, recordId: null });
+          }
+        });
+        setSamples(rows);
+      })
+      .catch(() => setSamples([]));
+  }, [patientId]);
+
+  if (!samples) {
+    return (
+      <div style={{ background: "#f8faff", borderTop: "1px solid #dbeafe", padding: "14px 16px" }}>
+        <span style={{ fontSize: 12, color: "#94a3b8" }}>Loading samples…</span>
+      </div>
+    );
+  }
+
+  if (samples.length === 0) {
+    return (
+      <div style={{ background: "#f8faff", borderTop: "1px solid #dbeafe", padding: "14px 16px" }}>
+        <span style={{ fontSize: 12, color: "#94a3b8" }}>No sample records found.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: "#f8faff", borderTop: "1px solid #dbeafe", animation: "expandIn 0.18s ease", transformOrigin: "top" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 1fr 1fr 1fr 1fr", padding: "8px 0", borderBottom: "1px solid #e2e8f0" }}>
+        <div />
+        {["SID", "Case Label", "Sequencing", "DNA Availability", "Report Status"].map(h => (
+          <div key={h} style={{ padding: "0 16px", fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: "'DM Mono', monospace" }}>{h}</div>
+        ))}
+      </div>
+      {samples.map((samp, si) => {
+        const isActiveSample = selectedSample?.patient?.id === patientId && selectedSample?.sample?.id === samp.sampleId;
+        return (
+          <div
+            key={`${patientId}-s-${samp.sampleId}-r-${samp.recordId ?? si}`}
+            className={`sample-row${isActiveSample ? " active-sample" : ""}`}
+            onClick={(e) => {
+              if (e.detail === 2) { navigate(`/view-patient/${patientId}`); return; }
+              onOpenSample(patientId, samp.sampleId);
+            }}
+            style={{ display: "grid", gridTemplateColumns: "44px 1fr 1fr 1fr 1fr 1fr", padding: "11px 0", borderBottom: si < samples.length - 1 ? "1px solid #e8edf3" : "none", background: isActiveSample ? "#dbeafe" : "transparent", transition: "background 0.1s" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: isActiveSample ? "#2563eb" : "#93c5fd" }} />
+            </div>
+            <div style={{ padding: "0 16px" }}>
+              <span style={{ fontSize: 12, color: "#64748b", fontFamily: "'DM Mono', monospace" }}>{samp.sid || "—"}</span>
+            </div>
+            <div style={{ padding: "0 16px" }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#1e40af", fontFamily: "'DM Mono', monospace" }}>{samp.new_case_label || "No Label"}</span>
+            </div>
+            <div style={{ padding: "0 16px" }}>
+              <span style={{ fontSize: 12, color: "#64748b" }}>{samp.sequencing || "—"}</span>
+            </div>
+            <div style={{ padding: "0 16px" }}>
+              <span style={{ fontSize: 12, color: "#64748b" }}>{samp.dna_availability || "—"}</span>
+            </div>
+            <div style={{ padding: "0 16px" }}>
+              <span style={{ fontSize: 12, color: "#64748b" }}>{samp.report_status || "—"}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function PatientRecords() {
   const [patients, setPatients]               = useState([]);
@@ -152,7 +211,7 @@ export default function PatientRecords() {
     setError(null);
     try {
       const data = await getPatients();
-      setPatients(deduplicatePatients(data));
+      setPatients(data);
     } catch (err) {
       console.error(err);
       setError("Failed to load patients. Is the API running?");
@@ -399,9 +458,9 @@ export default function PatientRecords() {
                   <thead>
                     <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e8edf3" }}>
                       <th style={{ width: 44, padding: "13px 8px 13px 16px" }} />
-                      {["AOB ID", "SID", "Name", "Age", "Gender", "Samples", ""].map((h, i) => (
+                      {["AOB ID", "Name", "Age", "Gender", "Samples", ""].map((h, i) => (
                         <th key={i} style={{
-                          padding: "13px 16px", textAlign: i === 6 ? "right" : "left",
+                          padding: "13px 16px", textAlign: i === 5 ? "right" : "left",
                           fontSize: 11, fontWeight: 700, color: "#94a3b8",
                           letterSpacing: "0.08em", textTransform: "uppercase",
                           fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap",
@@ -426,7 +485,7 @@ export default function PatientRecords() {
                       filtered.map((p, idx) => {
                         const isExpanded  = expandedIds.has(p.id);
                         const isActive    = activePanelPatientId === p.id;
-                        const hasSamples  = p.samples && p.samples.length > 0;
+                        const hasSamples  = (p.total_samples ?? 0) > 0;
                         const isDeleting  = deletingId === p.id;
 
                         return (
@@ -465,11 +524,11 @@ export default function PatientRecords() {
                                 }}>{p.aob_id || "—"}</span>
                               </td>
 
-                              <td style={{ padding: "17px 16px" }}>
+                              {/* <td style={{ padding: "17px 16px" }}>
                                 <span style={{ color: "#64748b", fontSize: 13, fontFamily: "'DM Mono', monospace" }}>
-                                  {p.sid || "—"}
+                                  {p.total_samples ?? 0}
                                 </span>
-                              </td>
+                              </td> */}
 
                               <td style={{ padding: "17px 16px" }}>
                                 <span style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}>
@@ -494,10 +553,10 @@ export default function PatientRecords() {
                                       background: "#eff6ff", border: "1px solid #bfdbfe",
                                       fontSize: 11, fontWeight: 700, color: "#2563eb",
                                     }}>
-                                      {p.samples.length}
+                                      {p.total_samples}
                                     </span>
                                     <span style={{ fontSize: 12, color: "#64748b" }}>
-                                      sample{p.samples.length !== 1 ? "s" : ""}
+                                      sample{p.total_samples !== 1 ? "s" : ""}
                                     </span>
                                     <span style={{ fontSize: 11, color: "#94a3b8" }}>
                                       {isExpanded ? "▲ collapse" : "▼ expand"}
@@ -541,79 +600,12 @@ export default function PatientRecords() {
                             {isExpanded && hasSamples && (
                               <tr>
                                 <td colSpan={8} style={{ padding: 0, borderBottom: "1px solid #e8edf3" }}>
-                                  <div style={{
-                                    background: "#f8faff",
-                                    borderTop: "1px solid #dbeafe",
-                                    animation: "expandIn 0.18s ease",
-                                    transformOrigin: "top",
-                                  }}>
-                                    <div style={{
-                                      display: "grid",
-                                      gridTemplateColumns: "44px 1fr 1fr 1fr 1fr",
-                                      padding: "8px 0",
-                                      borderBottom: "1px solid #e2e8f0",
-                                    }}>
-                                      <div />
-                                      {["Case Label", "Sequencing", "DNA Availability", "Report Status"].map(h => (
-                                        <div key={h} style={{
-                                          padding: "0 16px",
-                                          fontSize: 10, fontWeight: 700, color: "#94a3b8",
-                                          textTransform: "uppercase", letterSpacing: "0.08em",
-                                          fontFamily: "'DM Mono', monospace",
-                                        }}>{h}</div>
-                                      ))}
-                                    </div>
-
-                                    {p.samples.map((samp, si) => {
-                                      const isActiveSample =
-                                        selectedSample?.patient?.id === p.id &&
-                                        selectedSample?.sample?.id === samp.sample_id;
-                                        
-                                      return (
-                                        <div
-                                          key={`${p.id}-s-${samp.sample_id}`}
-                                          className={`sample-row${isActiveSample ? " active-sample" : ""}`}
-                                          onClick={(e) => {
-                                            if (e.detail === 2) {
-                                              navigate(`/view-patient/${p.id}`);
-                                              return;
-                                            }
-                                            openSample(p.id, samp.sample_id);
-                                          }}
-                                          style={{
-                                            display: "grid",
-                                            gridTemplateColumns: "44px 1fr 1fr 1fr 1fr",
-                                            padding: "11px 0",
-                                            borderBottom: si < p.samples.length - 1 ? "1px solid #e8edf3" : "none",
-                                            background: isActiveSample ? "#dbeafe" : "transparent",
-                                            transition: "background 0.1s",
-                                          }}
-                                        >
-                                          <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                            <div style={{
-                                              width: 6, height: 6, borderRadius: "50%",
-                                              background: isActiveSample ? "#2563eb" : "#93c5fd",
-                                            }} />
-                                          </div>
-                                          <div style={{ padding: "0 16px" }}>
-                                            <span style={{
-                                              fontSize: 13, fontWeight: 600, color: "#1e40af",
-                                              fontFamily: "'DM Mono', monospace",
-                                            }}>{samp.new_case_label || "No Label"}</span>
-                                          </div>
-                                          <div style={{ padding: "0 16px" }}>
-                                            <span style={{ fontSize: 12, color: "#64748b" }}>{samp.sequencing || "—"}</span>
-                                          </div>
-                                          <div style={{ padding: "0 16px" }}>
-                                            <span style={{ fontSize: 12, color: "#64748b" }}>{samp.dna_availability || "—"}</span>
-                                          </div>
-                                          <div style={{ padding: "0 16px" }}>
-                                            <span style={{ fontSize: 12, color: "#64748b" }}>{samp.report_status || "—"}</span>
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
+                                  <ExpandedSamples
+                                    patientId={p.id}
+                                    selectedSample={selectedSample}
+                                    onOpenSample={openSample}
+                                    navigate={navigate}
+                                  />
                                 </td>
                               </tr>
                             )}
@@ -706,8 +698,8 @@ export default function PatientRecords() {
                     </div>
 
                     <DetailRow label="Patient ID" value={selectedSample.patient?.patient_id} />
-                    <DetailRow label="Case Label" value={selectedSample.sample?.new_case_label} />
-                    <DetailRow label="SID" value={selectedSample.patient?.sid} />
+                    <DetailRow label="Case Label" value={selectedSample.sample?.records?.[0]?.new_case_label || selectedSample.sample?.new_case_label} />
+                    <DetailRow label="SID" value={selectedSample.sample?.sid} />
                     
                     <div style={{ paddingTop: 16 }}>
                       <button

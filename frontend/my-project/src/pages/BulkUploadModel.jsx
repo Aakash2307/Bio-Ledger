@@ -150,6 +150,18 @@ export default function BulkUploadModal({ onClose, onDone }) {
     const errors   = [...rowError];
     let successCount = 0, createdCount = 0, errorCount = 0;
 
+    // ── Fetch existing patients ONCE before the loop ──
+    let existingPatients = [];
+    try {
+      const res = await fetch("http://localhost:8000/patients/");
+      existingPatients = await res.json();
+    } catch {
+      existingPatients = [];
+    }
+    // Build a quick lookup map: patient_id string → db id
+    const patientMap = {};
+    existingPatients.forEach(p => { patientMap[String(p.patient_id)] = p.id; });
+
     for (let i = 0; i < rows.length; i++) {
       statuses[i] = "uploading";
       setRowStatus([...statuses]);
@@ -169,59 +181,90 @@ export default function BulkUploadModal({ onClose, onDone }) {
         continue;
       }
 
-      // Split into patient payload + sample payload
+      // Build patient fields payload
       const patientPayload = {};
-      const samplePayload  = {};
-      for (const f of PATIENT_FIELDS) if (row[f] !== "" && row[f] !== undefined) patientPayload[f] = row[f];
-      for (const f of SAMPLE_FIELDS)  if (row[f] !== "" && row[f] !== undefined) samplePayload[f]  = row[f];
+      for (const f of PATIENT_FIELDS) {
+        if (f !== "sid" && row[f] !== "" && row[f] !== undefined)
+          patientPayload[f] = row[f];
+      }
+
+      // Build sample record fields payload
+      const recordPayload = {};
+      for (const f of SAMPLE_FIELDS) {
+        if (row[f] !== "" && row[f] !== undefined)
+          recordPayload[f] = row[f];
+      }
+
+      const pidKey = String(row.patient_id).trim();
 
       try {
-        // 1. Try to find or create patient
-        let patientDbId = null;
+        let patientDbId = patientMap[pidKey] ?? null;
         let patientCreated = false;
 
-        // Check if patient exists
-        const checkRes = await fetch(`http://localhost:8000/patients`);
-        const allPatients = await checkRes.json();
-        const existing = allPatients.find(p => p.patient_id === String(row.patient_id));
+        if (patientDbId) {
+          // ── Patient exists → add sample + record via separate calls ──
+          // 1. Create the SID
+          const sampleRes = await fetch(
+            `http://localhost:8000/patients/${patientDbId}/samples`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ sid: String(row.sid) }),
+            }
+          );
+          if (!sampleRes.ok) {
+            const err = await sampleRes.json();
+            throw new Error(err.detail || "Failed to add sample");
+          }
+          const sampleData = await sampleRes.json();
+          const sampleDbId = sampleData.sample_id;
 
-        if (existing) {
-          patientDbId = existing.id;
+          // 2. Add record under the SID
+          if (Object.keys(recordPayload).length > 0) {
+            const recordRes = await fetch(
+              `http://localhost:8000/samples/${sampleDbId}/records`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(recordPayload),
+              }
+            );
+            if (!recordRes.ok) {
+              const err = await recordRes.json();
+              throw new Error(err.detail || "Failed to add sample record");
+            }
+          }
+
+          statuses[i] = "success";
+          successCount++;
+
         } else {
-          // Auto-create patient
-          if (!patientPayload.name) patientPayload.name = patientPayload.patient_id; // fallback name
-          const createRes = await fetch("http://localhost:8000/patients/", {
+          // ── Patient doesn't exist → create everything in one call ──
+          if (!patientPayload.name) patientPayload.name = pidKey; // fallback name
+
+          const combined = {
+            ...patientPayload,
+            sid: String(row.sid),
+            ...recordPayload,
+          };
+
+          const createRes = await fetch("http://localhost:8000/patients/with-sample", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(patientPayload),
+            body: JSON.stringify(combined),
           });
           if (!createRes.ok) {
             const err = await createRes.json();
             throw new Error(err.detail || "Failed to create patient");
           }
-          // Re-fetch to get new ID
-          const refreshRes = await fetch(`http://localhost:8000/patients`);
-          const refreshed  = await refreshRes.json();
-          const newP = refreshed.find(p => p.patient_id === String(row.patient_id));
-          patientDbId    = newP?.id;
+          const created = await createRes.json();
+
+          // Add to map so duplicate patient_ids in same file reuse this id
+          patientMap[pidKey] = created.patient_id;
           patientCreated = true;
+          statuses[i] = "created";
+          createdCount++;
         }
-
-        if (!patientDbId) throw new Error("Could not resolve patient ID after creation");
-
-        // 2. Add sample
-        const sampleRes = await fetch(`http://localhost:8000/patients/${patientDbId}/samples`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(samplePayload),
-        });
-        if (!sampleRes.ok) {
-          const err = await sampleRes.json();
-          throw new Error(err.detail || "Failed to add sample");
-        }
-
-        statuses[i] = patientCreated ? "created" : "success";
-        if (patientCreated) createdCount++; else successCount++;
 
       } catch (err) {
         statuses[i] = "error";

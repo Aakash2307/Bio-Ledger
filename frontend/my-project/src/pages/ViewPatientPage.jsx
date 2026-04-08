@@ -39,12 +39,7 @@ function StatusBadge({ status }) {
 
 function Avatar({ name }) {
   const initials = name
-    ? name
-        .split(" ")
-        .map((w) => w[0])
-        .slice(0, 2)
-        .join("")
-        .toUpperCase()
+    ? name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
     : "?";
   return (
     <div
@@ -205,11 +200,7 @@ function EditTextarea({ label, value, onChange, wide = false }) {
         value={value || ""}
         onChange={(e) => onChange(e.target.value)}
         rows={3}
-        style={{
-          ...inputStyle,
-          resize: "vertical",
-          lineHeight: 1.5,
-        }}
+        style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
         onFocus={(e) => {
           e.target.style.borderColor = "#3b82f6";
           e.target.style.boxShadow = "0 0 0 3px rgba(59,130,246,0.1)";
@@ -252,9 +243,7 @@ function EditSelect({ label, value, onChange, options, wide = false }) {
       >
         <option value="">Select...</option>
         {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
+          <option key={o} value={o}>{o}</option>
         ))}
       </select>
     </div>
@@ -385,7 +374,7 @@ function Toast({ message, type }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ViewPatientPage() {
-  const { id } = useParams();
+  const { id, sampleId } = useParams(); // sampleId comes from URL: /view-patient/:id/:sampleId
   const navigate = useNavigate();
 
   const [patient, setPatient] = useState(null);
@@ -396,7 +385,6 @@ export default function ViewPatientPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
-  const [sampleId, setSampleId] = useState(null);
   const [recordId, setRecordId] = useState(null);
 
   const showToast = (message, type = "success") => {
@@ -411,15 +399,21 @@ export default function ViewPatientPage() {
       try {
         const data = await getPatientDetails(id);
         const patientData = data.patient;
-        const sampleRow   = data.samples && data.samples.length > 0 ? data.samples[0] : {};
-        const recordData  = sampleRow.records && sampleRow.records.length > 0 ? sampleRow.records[0] : {};
 
-        // Store IDs needed for the update call
-        setSampleId(sampleRow.id ?? null);
+        // ── FIX: find the correct sample by sampleId from URL ──
+        const sampleRow = sampleId
+          ? (data.samples.find(s => String(s.id) === String(sampleId)) ?? data.samples[0])
+          : data.samples?.[0] ?? {};
+
+        const recordData = sampleRow.records && sampleRow.records.length > 0
+          ? sampleRow.records[0]
+          : {};
+
+        // Only recordId needed for the update call — sampleId comes from useParams
         setRecordId(recordData.id ?? null);
 
         setPatient(patientData);
-        setSample(recordData);  // sample sections display from record fields
+        setSample(recordData);
         setForm({ ...patientData, sid: sampleRow.sid || "", ...recordData });
       } catch (err) {
         console.error(err);
@@ -429,7 +423,7 @@ export default function ViewPatientPage() {
       }
     }
     load();
-  }, [id]);
+  }, [id, sampleId]); // re-run when either patient or sample changes
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 
@@ -457,7 +451,7 @@ export default function ViewPatientPage() {
         patient_status:  form.patient_status || null,
         consultation:    form.consultation || null,
         // Sample + record IDs for targeting the right rows
-        sample_id:       sampleId,
+        sample_id:       sampleId ? Number(sampleId) : null, // from URL params
         record_id:       recordId,
         sid:             form.sid || null,
         // Record fields
@@ -485,10 +479,12 @@ export default function ViewPatientPage() {
 
       const updated = await updatePatientWithSample(id, payload);
 
-      // Backend returns { patient: {...}, samples: [{...records:[...]}] }
+      // Find the correct updated sample row by sampleId
       const updatedPatient = updated?.patient || patient;
-      const updatedSampleRow = updated?.samples?.[0] || {};
-      const updatedRecord  = updatedSampleRow?.records?.[0] || {};
+      const updatedSampleRow = sampleId
+        ? (updated?.samples?.find(s => String(s.id) === String(sampleId)) ?? updated?.samples?.[0] ?? {})
+        : updated?.samples?.[0] ?? {};
+      const updatedRecord = updatedSampleRow?.records?.[0] || {};
 
       setPatient(updatedPatient);
       setSample(updatedRecord);
@@ -540,29 +536,13 @@ export default function ViewPatientPage() {
                 src={logo}
                 alt="TZAR Labs"
                 style={{ height: 38, objectFit: "contain" }}
-                onError={(e) => {
-                  e.target.style.display = "none";
-                }}
+                onError={(e) => { e.target.style.display = "none"; }}
               />
               <div>
-                <div
-                  style={{
-                    fontSize: 17,
-                    fontWeight: 700,
-                    color: "#0f172a",
-                    letterSpacing: "-0.01em",
-                  }}
-                >
+                <div style={{ fontSize: 17, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em" }}>
                   {loading ? "Loading..." : patient?.name || "Patient Details"}
                 </div>
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: "#94a3b8",
-                    fontWeight: 500,
-                    marginTop: 1,
-                  }}
-                >
+                <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 500, marginTop: 1 }}>
                   Exome Patient Management
                 </div>
               </div>
@@ -575,25 +555,14 @@ export default function ViewPatientPage() {
                     onClick={handleCancel}
                     disabled={saving}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      padding: "8px 18px",
-                      borderRadius: 9,
-                      border: "1.5px solid #e2e8f0",
-                      background: "#fff",
-                      color: "#475569",
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: saving ? "not-allowed" : "pointer",
-                      transition: "all 0.15s",
+                      display: "flex", alignItems: "center", gap: 6,
+                      padding: "8px 18px", borderRadius: 9,
+                      border: "1.5px solid #e2e8f0", background: "#fff",
+                      color: "#475569", fontSize: 13, fontWeight: 600,
+                      cursor: saving ? "not-allowed" : "pointer", transition: "all 0.15s",
                     }}
-                    onMouseEnter={(e) => {
-                      if (!saving) e.currentTarget.style.background = "#f8fafc";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "#fff";
-                    }}
+                    onMouseEnter={(e) => { if (!saving) e.currentTarget.style.background = "#f8fafc"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; }}
                   >
                     Cancel
                   </button>
@@ -601,41 +570,19 @@ export default function ViewPatientPage() {
                     onClick={handleSave}
                     disabled={saving}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      padding: "8px 20px",
-                      borderRadius: 9,
-                      border: "none",
+                      display: "flex", alignItems: "center", gap: 6,
+                      padding: "8px 20px", borderRadius: 9, border: "none",
                       background: saving ? "#86efac" : "#16a34a",
-                      color: "#fff",
-                      fontSize: 13,
-                      fontWeight: 700,
+                      color: "#fff", fontSize: 13, fontWeight: 700,
                       cursor: saving ? "not-allowed" : "pointer",
-                      boxShadow: "0 2px 8px rgba(22,163,74,0.3)",
-                      transition: "all 0.15s",
+                      boxShadow: "0 2px 8px rgba(22,163,74,0.3)", transition: "all 0.15s",
                     }}
-                    onMouseEnter={(e) => {
-                      if (!saving) e.currentTarget.style.background = "#15803d";
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!saving) e.currentTarget.style.background = "#16a34a";
-                    }}
+                    onMouseEnter={(e) => { if (!saving) e.currentTarget.style.background = "#15803d"; }}
+                    onMouseLeave={(e) => { if (!saving) e.currentTarget.style.background = "#16a34a"; }}
                   >
-                    {saving ? (
-                      "Saving..."
-                    ) : (
+                    {saving ? "Saving..." : (
                       <>
-                        <svg
-                          width="13"
-                          height="13"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="20 6 9 17 4 12" />
                         </svg>
                         Save Changes
@@ -647,18 +594,11 @@ export default function ViewPatientPage() {
                 <button
                   onClick={handleEdit}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "8px 18px",
-                    borderRadius: 9,
-                    border: "1.5px solid #e2e8f0",
-                    background: "#fff",
-                    color: "#475569",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    transition: "all 0.15s",
+                    display: "flex", alignItems: "center", gap: 6,
+                    padding: "8px 18px", borderRadius: 9,
+                    border: "1.5px solid #e2e8f0", background: "#fff",
+                    color: "#475569", fontSize: 13, fontWeight: 600,
+                    cursor: "pointer", transition: "all 0.15s",
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = "#f8fafc";
@@ -671,16 +611,7 @@ export default function ViewPatientPage() {
                     e.currentTarget.style.color = "#475569";
                   }}
                 >
-                  <svg
-                    width="13"
-                    height="13"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                   </svg>
@@ -691,18 +622,11 @@ export default function ViewPatientPage() {
               <button
                 onClick={() => navigate(-1)}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "8px 18px",
-                  borderRadius: 9,
-                  border: "1.5px solid #e2e8f0",
-                  background: "#fff",
-                  color: "#475569",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  transition: "all 0.15s",
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "8px 18px", borderRadius: 9,
+                  border: "1.5px solid #e2e8f0", background: "#fff",
+                  color: "#475569", fontSize: 13, fontWeight: 600,
+                  cursor: "pointer", transition: "all 0.15s",
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = "#f8fafc";
@@ -713,16 +637,7 @@ export default function ViewPatientPage() {
                   e.currentTarget.style.borderColor = "#e2e8f0";
                 }}
               >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="19" y1="12" x2="5" y2="12" />
                   <polyline points="12 19 5 12 12 5" />
                 </svg>
@@ -736,32 +651,17 @@ export default function ViewPatientPage() {
         {editing && (
           <div
             style={{
-              background: "#eff6ff",
-              borderBottom: "1px solid #bfdbfe",
-              padding: "10px 32px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
+              background: "#eff6ff", borderBottom: "1px solid #bfdbfe",
+              padding: "10px 32px", display: "flex", alignItems: "center",
+              justifyContent: "center", gap: 8,
             }}
           >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#2563eb"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10" />
               <line x1="12" y1="8" x2="12" y2="12" />
               <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
-            <span
-              style={{ fontSize: 13, fontWeight: 600, color: "#1d4ed8" }}
-            >
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#1d4ed8" }}>
               You are in edit mode — make your changes and click Save Changes
             </span>
           </div>
@@ -772,17 +672,10 @@ export default function ViewPatientPage() {
           {error && (
             <div
               style={{
-                padding: "16px 20px",
-                borderRadius: 12,
-                marginBottom: 24,
-                background: "#fef2f2",
-                border: "1px solid #fecaca",
-                color: "#dc2626",
-                fontSize: 14,
-                fontWeight: 500,
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
+                padding: "16px 20px", borderRadius: 12, marginBottom: 24,
+                background: "#fef2f2", border: "1px solid #fecaca",
+                color: "#dc2626", fontSize: 14, fontWeight: 500,
+                display: "flex", alignItems: "center", gap: 8,
               }}
             >
               ⚠️ {error}
@@ -793,15 +686,10 @@ export default function ViewPatientPage() {
           {loading && (
             <div
               style={{
-                background: "#fff",
-                borderRadius: 20,
-                border: "1px solid #e8edf3",
-                padding: "28px 32px",
-                marginBottom: 24,
+                background: "#fff", borderRadius: 20, border: "1px solid #e8edf3",
+                padding: "28px 32px", marginBottom: 24,
                 boxShadow: "0 2px 12px rgba(0,0,0,0.05)",
-                display: "flex",
-                alignItems: "center",
-                gap: 20,
+                display: "flex", alignItems: "center", gap: 20,
               }}
             >
               <Skeleton w={68} h={68} radius={34} />
@@ -826,187 +714,66 @@ export default function ViewPatientPage() {
                 border: editing ? "1.5px solid #bfdbfe" : "1px solid #e8edf3",
                 padding: "28px 32px",
                 marginBottom: 24,
-                boxShadow: editing
-                  ? "0 2px 12px rgba(37,99,235,0.08)"
-                  : "0 2px 12px rgba(0,0,0,0.05)",
+                boxShadow: editing ? "0 2px 12px rgba(37,99,235,0.08)" : "0 2px 12px rgba(0,0,0,0.05)",
                 animation: "slideUp 0.25s ease both",
                 transition: "border-color 0.2s, box-shadow 0.2s",
               }}
             >
               {editing ? (
-                /* Edit hero — all fields from patients table */
                 <div>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 16,
-                      marginBottom: 20,
-                    }}
-                  >
+                  <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
                     <Avatar name={form?.name} />
                     <div style={{ fontSize: 13, color: "#64748b" }}>
-                      Editing{" "}
-                      <strong style={{ color: "#0f172a" }}>{patient.name}</strong>
+                      Editing <strong style={{ color: "#0f172a" }}>{patient.name}</strong>
                     </div>
                   </div>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fill, minmax(175px, 1fr))",
-                      gap: "16px 28px",
-                    }}
-                  >
-                    <EditField
-                      label="Patient ID"
-                      value={form?.patient_id}
-                      onChange={(v) => set("patient_id", v)}
-                    />
-                    <EditField
-                      label="Name"
-                      value={form?.name}
-                      onChange={(v) => set("name", v)}
-                      wide
-                    />
-                    <EditField
-                      label="Age"
-                      value={form?.age}
-                      onChange={(v) => set("age", v)}
-                      type="number"
-                    />
-                    <EditSelect
-                      label="Gender"
-                      value={form?.gender}
-                      onChange={(v) => set("gender", v)}
-                      options={["Male", "Female", "Other"]}
-                    />
-                    <EditField
-                      label="AOB ID"
-                      value={form?.aob_id}
-                      onChange={(v) => set("aob_id", v)}
-                    />
-                    <EditField
-                      label="SID"
-                      value={form?.sid}
-                      onChange={(v) => set("sid", v)}
-                    />
-                    <EditSelect
-                      label="Patient Status"
-                      value={form?.patient_status}
-                      onChange={(v) => set("patient_status", v)}
-                      options={["New", "In Progress", "Completed", "Active", "Inactive"]}
-                      wide
-                    />
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(175px, 1fr))", gap: "16px 28px" }}>
+                    <EditField label="Patient ID" value={form?.patient_id} onChange={(v) => set("patient_id", v)} />
+                    <EditField label="Name" value={form?.name} onChange={(v) => set("name", v)} wide />
+                    <EditField label="Age" value={form?.age} onChange={(v) => set("age", v)} type="number" />
+                    <EditSelect label="Gender" value={form?.gender} onChange={(v) => set("gender", v)} options={["Male", "Female", "Other"]} />
+                    <EditField label="AOB ID" value={form?.aob_id} onChange={(v) => set("aob_id", v)} />
+                    <EditField label="SID" value={form?.sid} onChange={(v) => set("sid", v)} />
+                    <EditSelect label="Patient Status" value={form?.patient_status} onChange={(v) => set("patient_status", v)} options={["New", "In Progress", "Completed", "Active", "Inactive"]} wide />
                   </div>
                 </div>
               ) : (
-                /* View hero — from patients table */
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 20,
-                    flexWrap: "wrap",
-                  }}
-                >
+                <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
                   <Avatar name={patient.name} />
                   <div style={{ flex: 1, minWidth: 220 }}>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 12,
-                        flexWrap: "wrap",
-                        marginBottom: 10,
-                      }}
-                    >
-                      <h1
-                        style={{
-                          fontSize: 22,
-                          fontWeight: 800,
-                          color: "#0f172a",
-                          letterSpacing: "-0.02em",
-                        }}
-                      >
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 10 }}>
+                      <h1 style={{ fontSize: 22, fontWeight: 800, color: "#0f172a", letterSpacing: "-0.02em" }}>
                         {patient.name || "Unknown Patient"}
                       </h1>
-                      {patient.patient_status && (
-                        <StatusBadge status={patient.patient_status} />
-                      )}
+                      {patient.patient_status && <StatusBadge status={patient.patient_status} />}
                     </div>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                       {[
-                        { label: "AOB ID", value: patient.aob_id },
+                        { label: "AOB ID", value: sample?.aob_id },
                         { label: "Patient ID", value: patient.patient_id },
-                        { label: "SID", value: patient.sid },
+                        { label: "SID", value: form?.sid },
+                        { label: "Age", value: sample?.age },
+                        { label: "Patient Status", value: sample?.patient_status },
+
                       ]
                         .filter((f) => f.value)
                         .map((f) => (
-                          <div
-                            key={f.label}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              background: "#f8fafc",
-                              border: "1px solid #e2e8f0",
-                              borderRadius: 8,
-                              overflow: "hidden",
-                            }}
-                          >
-                            <span
-                              style={{
-                                padding: "4px 8px",
-                                fontSize: 10,
-                                fontWeight: 700,
-                                color: "#94a3b8",
-                                textTransform: "uppercase",
-                                letterSpacing: "0.06em",
-                                background: "#f1f5f9",
-                                borderRight: "1px solid #e2e8f0",
-                              }}
-                            >
+                          <div key={f.label} style={{ display: "flex", alignItems: "center", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, overflow: "hidden" }}>
+                            <span style={{ padding: "4px 8px", fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", background: "#f1f5f9", borderRight: "1px solid #e2e8f0" }}>
                               {f.label}
                             </span>
-                            <span
-                              style={{
-                                padding: "4px 10px",
-                                fontSize: 12,
-                                fontWeight: 600,
-                                color: "#1e293b",
-                                fontFamily: "'DM Mono', monospace",
-                              }}
-                            >
+                            <span style={{ padding: "4px 10px", fontSize: 12, fontWeight: 600, color: "#1e293b", fontFamily: "'DM Mono', monospace" }}>
                               {f.value}
                             </span>
                           </div>
                         ))}
                       {patient.age && (
-                        <div
-                          style={{
-                            padding: "4px 12px",
-                            background: "#eff6ff",
-                            border: "1px solid #bfdbfe",
-                            borderRadius: 8,
-                            fontSize: 12,
-                            fontWeight: 600,
-                            color: "#2563eb",
-                          }}
-                        >
+                        <div style={{ padding: "4px 12px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#2563eb" }}>
                           {patient.age} yrs
                         </div>
                       )}
                       {patient.gender && (
-                        <div
-                          style={{
-                            padding: "4px 12px",
-                            background: "#f8fafc",
-                            border: "1px solid #e2e8f0",
-                            borderRadius: 8,
-                            fontSize: 12,
-                            fontWeight: 600,
-                            color: "#475569",
-                          }}
-                        >
+                        <div style={{ padding: "4px 12px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#475569" }}>
                           {patient.gender}
                         </div>
                       )}
@@ -1021,38 +788,15 @@ export default function ViewPatientPage() {
           {loading && (
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               {[0, 1, 2].map((i) => (
-                <div
-                  key={i}
-                  style={{
-                    background: "#fff",
-                    borderRadius: 16,
-                    border: "1px solid #e8edf3",
-                    overflow: "hidden",
-                  }}
-                >
-                  <div
-                    style={{
-                      padding: "15px 24px",
-                      borderBottom: "1px solid #f1f5f9",
-                      background: "#f8fafc",
-                    }}
-                  >
+                <div key={i} style={{ background: "#fff", borderRadius: 16, border: "1px solid #e8edf3", overflow: "hidden" }}>
+                  <div style={{ padding: "15px 24px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc" }}>
                     <Skeleton w={150} h={14} />
                   </div>
-                  <div
-                    style={{
-                      padding: "22px 24px",
-                      display: "grid",
-                      gridTemplateColumns: "repeat(4, 1fr)",
-                      gap: "20px 32px",
-                    }}
-                  >
+                  <div style={{ padding: "22px 24px", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "20px 32px" }}>
                     {Array.from({ length: 8 }).map((_, j) => (
                       <div key={j}>
                         <Skeleton w={70} h={10} />
-                        <div style={{ marginTop: 7 }}>
-                          <Skeleton w="85%" h={14} />
-                        </div>
+                        <div style={{ marginTop: 7 }}><Skeleton w="85%" h={14} /></div>
                       </div>
                     ))}
                   </div>
@@ -1064,66 +808,28 @@ export default function ViewPatientPage() {
           {/* Detail / Edit sections */}
           {!loading && patient && (
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
               {/* ── SECTION 1: Clinical Information ── */}
               {editing ? (
                 <EditSection icon="🩺" title="Clinical Information" delay={0.05}>
                   <EditGrid>
-                    <EditField
-                      label="Detail Disease"
-                      value={form?.detail_disease}
-                      onChange={(v) => set("detail_disease", v)}
-                      wide
-                    />
-                    <EditField
-                      label="Organ Type"
-                      value={form?.organ_type}
-                      onChange={(v) => set("organ_type", v)}
-                    />
-                    <EditField
-                      label="Comorbidity"
-                      value={form?.comorbidity}
-                      onChange={(v) => set("comorbidity", v)}
-                    />
-                    <EditRadio
-                      label="Family History"
-                      value={form?.family_history}
-                      onChange={(v) => set("family_history", v)}
-                      options={["Yes", "No", "Unknown"]}
-                    />
-                    <EditRadio
-                      label="Metastasis"
-                      value={form?.metastasis}
-                      onChange={(v) => set("metastasis", v)}
-                      options={["Yes", "No"]}
-                    />
-                    <EditField
-                      label="Consultation"
-                      value={form?.consultation}
-                      onChange={(v) => set("consultation", v)}
-                      wide
-                    />
+                    <EditField label="Detail Disease" value={form?.detail_disease} onChange={(v) => set("detail_disease", v)} wide />
+                    <EditField label="Organ Type" value={form?.organ_type} onChange={(v) => set("organ_type", v)} />
+                    <EditField label="Comorbidity" value={form?.comorbidity} onChange={(v) => set("comorbidity", v)} />
+                    <EditRadio label="Family History" value={form?.family_history} onChange={(v) => set("family_history", v)} options={["Yes", "No", "Unknown"]} />
+                    <EditRadio label="Metastasis" value={form?.metastasis} onChange={(v) => set("metastasis", v)} options={["Yes", "No"]} />
+                    <EditField label="Consultation" value={form?.consultation} onChange={(v) => set("consultation", v)} wide />
                   </EditGrid>
                 </EditSection>
               ) : (
                 <Section icon="🩺" title="Clinical Information" delay={0.05}>
                   <FieldGrid>
-                    <FieldItem
-                      label="Detail Disease"
-                      value={patient.detail_disease}
-                      wide
-                    />
-                    <FieldItem label="Organ Type" value={patient.organ_type} />
-                    <FieldItem label="Comorbidity" value={patient.comorbidity} />
-                    <FieldItem
-                      label="Family History"
-                      value={patient.family_history}
-                    />
-                    <FieldItem label="Metastasis" value={patient.metastasis} />
-                    <FieldItem
-                      label="Consultation"
-                      value={patient.consultation}
-                      wide
-                    />
+                    <FieldItem label="Detail Disease" value={sample?.detail_disease} wide />
+                    <FieldItem label="Organ Type" value={sample?.organ_type} />
+                    <FieldItem label="Comorbidity" value={sample?.comorbidity} />
+                    <FieldItem label="Family History" value={sample?.family_history} />
+                    <FieldItem label="Metastasis" value={sample?.metastasis} />
+                    <FieldItem label="Consultation" value={sample?.consultation} wide />
                   </FieldGrid>
                 </Section>
               )}
@@ -1132,67 +838,23 @@ export default function ViewPatientPage() {
               {editing ? (
                 <EditSection icon="🧪" title="Sample Information" delay={0.1}>
                   <EditGrid>
-                    <EditField
-                      label="Case Label"
-                      value={form?.new_case_label}
-                      onChange={(v) => set("new_case_label", v)}
-                    />
-                    <EditField
-                      label="Source"
-                      value={form?.source}
-                      onChange={(v) => set("source", v)}
-                    />
-                    <EditField
-                      label="Sample Collection Date"
-                      value={form?.sample_collection_date}
-                      onChange={(v) => set("sample_collection_date", v)}
-                      type="date"
-                    />
-                    <EditSelect
-                      label="DNA Availability"
-                      value={form?.dna_availability}
-                      onChange={(v) => set("dna_availability", v)}
-                      options={["Yes", "No", "Pending", "Exhausted"]}
-                    />
-                    <EditField
-                      label="Sample Labeling"
-                      value={form?.sample_labeling}
-                      onChange={(v) => set("sample_labeling", v)}
-                    />
-                    <EditTextarea
-                      label="Additional"
-                      value={form?.additional}
-                      onChange={(v) => set("additional", v)}
-                      wide
-                    />
+                    <EditField label="Case Label" value={form?.new_case_label} onChange={(v) => set("new_case_label", v)} />
+                    <EditField label="Source" value={form?.source} onChange={(v) => set("source", v)} />
+                    <EditField label="Sample Collection Date" value={form?.sample_collection_date} onChange={(v) => set("sample_collection_date", v)} type="date" />
+                    <EditSelect label="DNA Availability" value={form?.dna_availability} onChange={(v) => set("dna_availability", v)} options={["Yes", "No", "Pending", "Exhausted"]} />
+                    <EditField label="Sample Labeling" value={form?.sample_labeling} onChange={(v) => set("sample_labeling", v)} />
+                    <EditTextarea label="Additional" value={form?.additional} onChange={(v) => set("additional", v)} wide />
                   </EditGrid>
                 </EditSection>
               ) : (
                 <Section icon="🧪" title="Sample Information" delay={0.1}>
                   <FieldGrid>
-                    <FieldItem
-                      label="Case Label"
-                      value={sample?.new_case_label}
-                    />
+                    <FieldItem label="Case Label" value={sample?.new_case_label} />
                     <FieldItem label="Source" value={sample?.source} />
-                    <FieldItem
-                      label="Sample Collection Date"
-                      value={sample?.sample_collection_date}
-                    />
-                    <FieldItem
-                      label="DNA Availability"
-                      value={sample?.dna_availability}
-                    />
-                    <FieldItem
-                      label="Sample Labeling"
-                      value={sample?.sample_labeling}
-                      mono
-                    />
-                    <FieldItem
-                      label="Additional"
-                      value={sample?.additional}
-                      wide
-                    />
+                    <FieldItem label="Sample Collection Date" value={sample?.sample_collection_date} />
+                    <FieldItem label="DNA Availability" value={sample?.dna_availability} />
+                    <FieldItem label="Sample Labeling" value={sample?.sample_labeling} mono />
+                    <FieldItem label="Additional" value={sample?.additional} wide />
                   </FieldGrid>
                 </Section>
               )}
@@ -1201,32 +863,16 @@ export default function ViewPatientPage() {
               {editing ? (
                 <EditSection icon="🧬" title="Sequencing" delay={0.15}>
                   <EditGrid>
-                    <EditSelect
-                      label="Sequencing"
-                      value={form?.sequencing}
-                      onChange={(v) => set("sequencing", v)}
-                      options={["WES", "WGS", "RNA-Seq", "Panel", "Done", "Other"]}
-                    />
-                    <EditField
-                      label="Sequencing Partner"
-                      value={form?.sequencing_partner}
-                      onChange={(v) => set("sequencing_partner", v)}
-                    />
-                    <EditField
-                      label="DIN"
-                      value={form?.din}
-                      onChange={(v) => set("din", v)}
-                    />
+                    <EditSelect label="Sequencing" value={form?.sequencing} onChange={(v) => set("sequencing", v)} options={["WES", "WGS", "RNA-Seq", "Panel", "Done", "Other"]} />
+                    <EditField label="Sequencing Partner" value={form?.sequencing_partner} onChange={(v) => set("sequencing_partner", v)} />
+                    <EditField label="DIN" value={form?.din} onChange={(v) => set("din", v)} />
                   </EditGrid>
                 </EditSection>
               ) : (
                 <Section icon="🧬" title="Sequencing" delay={0.15}>
                   <FieldGrid>
                     <FieldItem label="Sequencing" value={sample?.sequencing} />
-                    <FieldItem
-                      label="Sequencing Partner"
-                      value={sample?.sequencing_partner}
-                    />
+                    <FieldItem label="Sequencing Partner" value={sample?.sequencing_partner} />
                     <FieldItem label="DIN" value={sample?.din} mono />
                   </FieldGrid>
                 </Section>
@@ -1236,58 +882,21 @@ export default function ViewPatientPage() {
               {editing ? (
                 <EditSection icon="📊" title="Data & Analysis" delay={0.2}>
                   <EditGrid>
-                    <EditRadio
-                      label="Data Received"
-                      value={form?.data_received}
-                      onChange={(v) => set("data_received", v)}
-                      options={["Yes", "No"]}
-                    />
-                    <EditField
-                      label="TMR-E (Gbp)"
-                      value={form?.tmr_e}
-                      onChange={(v) => set("tmr_e", v)}
-                    />
-                    <EditRadio
-                      label="Data Analysed (Som)"
-                      value={form?.data_analysed_som}
-                      onChange={(v) => set("data_analysed_som", v)}
-                      options={["Yes", "No"]}
-                    />
-                    <EditRadio
-                      label="Data Analysed (Germ)"
-                      value={form?.data_analysed_germ}
-                      onChange={(v) => set("data_analysed_germ", v)}
-                      options={["Yes", "No"]}
-                    />
-                    <EditField
-                      label="Analysis"
-                      value={form?.analysis}
-                      onChange={(v) => set("analysis", v)}
-                      wide
-                    />
+                    <EditRadio label="Data Received" value={form?.data_received} onChange={(v) => set("data_received", v)} options={["Yes", "No"]} />
+                    <EditField label="TMR-E (Gbp)" value={form?.tmr_e} onChange={(v) => set("tmr_e", v)} />
+                    <EditRadio label="Data Analysed (Som)" value={form?.data_analysed_som} onChange={(v) => set("data_analysed_som", v)} options={["Yes", "No"]} />
+                    <EditRadio label="Data Analysed (Germ)" value={form?.data_analysed_germ} onChange={(v) => set("data_analysed_germ", v)} options={["Yes", "No"]} />
+                    <EditField label="Analysis" value={form?.analysis} onChange={(v) => set("analysis", v)} wide />
                   </EditGrid>
                 </EditSection>
               ) : (
                 <Section icon="📊" title="Data & Analysis" delay={0.2}>
                   <FieldGrid>
-                    <FieldItem
-                      label="Data Received"
-                      value={sample?.data_received}
-                    />
+                    <FieldItem label="Data Received" value={sample?.data_received} />
                     <FieldItem label="TMR-E (Gbp)" value={sample?.tmr_e} mono />
-                    <FieldItem
-                      label="Data Analysed (Som)"
-                      value={sample?.data_analysed_som}
-                    />
-                    <FieldItem
-                      label="Data Analysed (Germ)"
-                      value={sample?.data_analysed_germ}
-                    />
-                    <FieldItem
-                      label="Analysis"
-                      value={sample?.analysis}
-                      wide
-                    />
+                    <FieldItem label="Data Analysed (Som)" value={sample?.data_analysed_som} />
+                    <FieldItem label="Data Analysed (Germ)" value={sample?.data_analysed_germ} />
+                    <FieldItem label="Analysis" value={sample?.analysis} wide />
                   </FieldGrid>
                 </Section>
               )}
@@ -1296,43 +905,18 @@ export default function ViewPatientPage() {
               {editing ? (
                 <EditSection icon="📋" title="Report" delay={0.25}>
                   <EditGrid>
-                    <EditField
-                      label="Research Report"
-                      value={form?.research_report}
-                      onChange={(v) => set("research_report", v)}
-                    />
-                    <EditSelect
-                      label="Report Status"
-                      value={form?.report_status}
-                      onChange={(v) => set("report_status", v)}
-                      options={["Pending", "In Progress", "Done", "Released"]}
-                    />
-                    <EditField
-                      label="Report Release Date"
-                      value={form?.report_release_date}
-                      onChange={(v) => set("report_release_date", v)}
-                      type="date"
-                    />
-                    <EditTextarea
-                      label="Comments"
-                      value={form?.comments}
-                      onChange={(v) => set("comments", v)}
-                      wide
-                    />
+                    <EditField label="Research Report" value={form?.research_report} onChange={(v) => set("research_report", v)} />
+                    <EditSelect label="Report Status" value={form?.report_status} onChange={(v) => set("report_status", v)} options={["Pending", "In Progress", "Done", "Released"]} />
+                    <EditField label="Report Release Date" value={form?.report_release_date} onChange={(v) => set("report_release_date", v)} type="date" />
+                    <EditTextarea label="Comments" value={form?.comments} onChange={(v) => set("comments", v)} wide />
                   </EditGrid>
                 </EditSection>
               ) : (
                 <Section icon="📋" title="Report" delay={0.25}>
                   <FieldGrid>
-                    <FieldItem
-                      label="Research Report"
-                      value={sample?.research_report}
-                    />
+                    <FieldItem label="Research Report" value={sample?.research_report} />
                     <FieldItem label="Report Status" value={sample?.report_status} />
-                    <FieldItem
-                      label="Report Release Date"
-                      value={sample?.report_release_date}
-                    />
+                    <FieldItem label="Report Release Date" value={sample?.report_release_date} />
                     <FieldItem label="Comments" value={sample?.comments} wide />
                   </FieldGrid>
                 </Section>

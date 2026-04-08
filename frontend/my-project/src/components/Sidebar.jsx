@@ -4,7 +4,6 @@
 //   onSignOut (function) - callback when Sign Out clicked
 
 import { useNavigate, useLocation } from "react-router-dom";
-import logo from "../assets/logo.png"; // Adjust the path as needed
 
 const navItems = [
   { label: "Dashboard",  icon: "⊞", path: "/"           },
@@ -33,29 +32,12 @@ export default function Sidebar({ onSignOut }) {
     }}>
       {/* Logo */}
       <div style={{ padding: "0 24px 32px", display: "flex", alignItems: "center", gap: 10 }}>
-
-
-                <div style={{
-            width: 30,
-            height: 30,
-            borderRadius: 8,
-            overflow: "hidden",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center"
-          }}>
-            <img 
-              src={logo}
-              alt="logo"
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-            />
-          </div>
-        {/* <div style={{
+        <div style={{
           width: 30, height: 30, borderRadius: 8,
           background: "linear-gradient(135deg, #3b82f6, #06b6d4)",
           display: "flex", alignItems: "center", justifyContent: "center",
           fontSize: 14, color: "#fff",
-        }}>✦</div> */}
+        }}>✦</div>
         <span style={{ color: "#fff", fontWeight: 700, fontSize: 16, letterSpacing: 1 }}>EXOME</span>
       </div>
 

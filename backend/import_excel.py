@@ -41,26 +41,12 @@ for _, row in df.iterrows():
         patient_db_id = existing_patient["id"]
     else:
         cursor.execute("""
-            INSERT INTO patients (
-                patient_id, aob_id, name, age, gender,
-                detail_disease, organ_type,
-                comorbidity, family_history,
-                metastasis, patient_status, consultation
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO patients (patient_id, name, gender)
+            VALUES (?, ?, ?)
         """, (
             patient_id_value,
-            clean_value(row.get("AOB ID")),
             clean_value(row.get("Name")),
-            clean_value(row.get("Age")),
             clean_value(row.get("Gender")),
-            clean_value(row.get("Detail Disease")),
-            clean_value(row.get("Organ Type")),
-            clean_value(row.get("Comorbidity")),
-            clean_value(row.get("Family history")),
-            clean_value(row.get("Metastasis")),
-            clean_value(row.get("Patient status")),
-            clean_value(row.get("Consultation")),
         ))
         patient_db_id = cursor.lastrowid
         inserted_patients += 1
@@ -87,6 +73,9 @@ for _, row in df.iterrows():
     cursor.execute("""
         INSERT INTO sample_records (
             sample_ref,
+            aob_id, age, detail_disease, organ_type,
+            comorbidity, family_history, metastasis,
+            patient_status, consultation,
             new_case_label, additional, source,
             sample_collection_date, dna_availability,
             sequencing, din, research_report,
@@ -97,9 +86,18 @@ for _, row in df.iterrows():
             report_status, report_release_date,
             comments
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         sample_db_id,
+        clean_value(row.get("AOB ID")),
+        clean_value(row.get("Age")),
+        clean_value(row.get("Detail Disease")),
+        clean_value(row.get("Organ Type")),
+        clean_value(row.get("Comorbidity")),
+        clean_value(row.get("Family history")),
+        clean_value(row.get("Metastasis")),
+        clean_value(row.get("Patient status")),
+        clean_value(row.get("Consultation")),
         clean_value(row.get("New Case label")),
         clean_value(row.get("Additional")),
         clean_value(row.get("Source")),

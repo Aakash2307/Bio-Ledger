@@ -21,17 +21,11 @@ def create_tables():
     CREATE TABLE IF NOT EXISTS patients (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         patient_id TEXT UNIQUE NOT NULL,
-        aob_id TEXT,
+        
         name TEXT,
-        age INTEGER,
+        
         gender TEXT,
-        detail_disease TEXT,
-        organ_type TEXT,
-        comorbidity TEXT,
-        family_history TEXT,
-        metastasis TEXT,
-        patient_status TEXT,
-        consultation TEXT,
+        
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
@@ -60,7 +54,15 @@ def create_tables():
     CREATE TABLE IF NOT EXISTS sample_records (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         sample_ref INTEGER NOT NULL,
-
+        aob_id TEXT,
+        age INTEGER,
+        detail_disease TEXT,
+        organ_type TEXT,
+        comorbidity TEXT,
+        family_history TEXT,
+        metastasis TEXT,
+        patient_status TEXT,
+        consultation TEXT,
         new_case_label TEXT,
         additional TEXT,
         source TEXT,

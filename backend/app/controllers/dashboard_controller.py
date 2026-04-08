@@ -66,27 +66,23 @@ def get_dashboard_summary(period: str = "all"):
 
     # ── Organ type distribution (non-benign) ──────────────────────────────────
     cursor.execute(f"""
-        SELECT p.organ_type, COUNT(sr.id) as count
+        SELECT sr.organ_type, COUNT(sr.id) as count
         FROM sample_records sr
-        JOIN samples s ON sr.sample_ref = s.id
-        JOIN patients p ON s.patient_ref = p.id
-        WHERE p.organ_type IS NOT NULL AND p.organ_type != ''
+        WHERE sr.organ_type IS NOT NULL AND sr.organ_type != ''
         AND sr.new_case_label != 'Benign'
         {record_date_filter}
-        GROUP BY p.organ_type
+        GROUP BY sr.organ_type
     """)
     organ_counts = {row["organ_type"]: row["count"] for row in cursor.fetchall()}
 
     # ── Benign organ distribution ─────────────────────────────────────────────
     cursor.execute(f"""
-        SELECT p.organ_type, COUNT(sr.id) as count
+        SELECT sr.organ_type, COUNT(sr.id) as count
         FROM sample_records sr
-        JOIN samples s ON sr.sample_ref = s.id
-        JOIN patients p ON s.patient_ref = p.id
         WHERE sr.new_case_label = 'Benign'
-        AND p.organ_type IS NOT NULL AND p.organ_type != ''
+        AND sr.organ_type IS NOT NULL AND sr.organ_type != ''
         {record_date_filter}
-        GROUP BY p.organ_type
+        GROUP BY sr.organ_type
     """)
     benign_organ_counts = {row["organ_type"]: row["count"] for row in cursor.fetchall()}
 

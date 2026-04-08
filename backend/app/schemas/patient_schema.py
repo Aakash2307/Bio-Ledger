@@ -1,51 +1,42 @@
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, field_validator
+from typing import Optional, Union
 
 
 # ── PATIENT ───────────────────────────────────────────────────────────────────
 
 class PatientCreate(BaseModel):
     patient_id: str
-    aob_id: Optional[str] = None
     name: Optional[str] = None
-    age: Optional[int] = None
     gender: Optional[str] = None
-    detail_disease: Optional[str] = None
-    organ_type: Optional[str] = None
-    comorbidity: Optional[str] = None
-    family_history: Optional[str] = None
-    metastasis: Optional[str] = None
-    patient_status: Optional[str] = None
-    consultation: Optional[str] = None
 
 
 class PatientUpdate(BaseModel):
-    aob_id: Optional[str] = None
     name: Optional[str] = None
-    age: Optional[int] = None
     gender: Optional[str] = None
-    detail_disease: Optional[str] = None
-    organ_type: Optional[str] = None
-    comorbidity: Optional[str] = None
-    family_history: Optional[str] = None
-    metastasis: Optional[str] = None
-    patient_status: Optional[str] = None
-    consultation: Optional[str] = None
 
 
 # ── SAMPLE (SID level) ────────────────────────────────────────────────────────
 
 class SampleCreate(BaseModel):
-    sid: str  # required — SID is the unique identifier for a sample
+    sid: str
 
 
 class SampleUpdate(BaseModel):
     sid: Optional[str] = None
 
 
-# ── SAMPLE RECORD (all test/sequencing data) ──────────────────────────────────
+# ── SAMPLE RECORD ─────────────────────────────────────────────────────────────
 
 class SampleRecordCreate(BaseModel):
+    aob_id: Optional[str] = None
+    age: Optional[Union[int, str]] = None
+    detail_disease: Optional[str] = None
+    organ_type: Optional[str] = None
+    comorbidity: Optional[str] = None
+    family_history: Optional[str] = None
+    metastasis: Optional[str] = None
+    patient_status: Optional[str] = None
+    consultation: Optional[str] = None
     new_case_label: Optional[str] = None
     additional: Optional[str] = None
     source: Optional[str] = None
@@ -56,9 +47,9 @@ class SampleRecordCreate(BaseModel):
     research_report: Optional[str] = None
     sequencing_partner: Optional[str] = None
     data_received: Optional[str] = None
-    tmr_e: Optional[float] = None
-    old_gbp: Optional[float] = None
-    gbp: Optional[float] = None
+    tmr_e: Optional[Union[float, str]] = None
+    old_gbp: Optional[Union[float, str]] = None
+    gbp: Optional[Union[float, str]] = None
     data_analysed_som: Optional[str] = None
     data_analysed_germ: Optional[str] = None
     sample_labeling: Optional[str] = None
@@ -66,18 +57,46 @@ class SampleRecordCreate(BaseModel):
     report_status: Optional[str] = None
     report_release_date: Optional[str] = None
     comments: Optional[str] = None
+
+    @field_validator("age", mode="before")
+    @classmethod
+    def parse_age(cls, v):
+        if v == "" or v is None:
+            return None
+        try:
+            return int(float(str(v)))
+        except:
+            return None
+
+    @field_validator("tmr_e", "old_gbp", "gbp", mode="before")
+    @classmethod
+    def parse_float(cls, v):
+        if v == "" or v is None:
+            return None
+        try:
+            return float(str(v))
+        except:
+            return None
 
 
 class SampleRecordUpdate(SampleRecordCreate):
     pass
 
+
+# ── PATIENT WITH SAMPLE (bulk upload / add patient page) ─────────────────────
+
 class PatientWithSampleCreate(BaseModel):
-    # ── Patient fields ────────────────────────────────────────────────────────
+    # Patient fields
     patient_id: str
-    aob_id: Optional[str] = None
     name: Optional[str] = None
-    age: Optional[int] = None
     gender: Optional[str] = None
+
+    # Sample
+    sid: Optional[str] = None
+
+    # Sample Record (includes former patient fields)
+    aob_id: Optional[str] = None
+    age: Optional[Union[int, str]] = None
     detail_disease: Optional[str] = None
     organ_type: Optional[str] = None
     comorbidity: Optional[str] = None
@@ -85,11 +104,6 @@ class PatientWithSampleCreate(BaseModel):
     metastasis: Optional[str] = None
     patient_status: Optional[str] = None
     consultation: Optional[str] = None
-
-    # ── Sample (SID) ──────────────────────────────────────────────────────────
-    sid: Optional[str] = None
-
-    # ── Sample Record fields ──────────────────────────────────────────────────
     new_case_label: Optional[str] = None
     additional: Optional[str] = None
     source: Optional[str] = None
@@ -100,9 +114,9 @@ class PatientWithSampleCreate(BaseModel):
     research_report: Optional[str] = None
     sequencing_partner: Optional[str] = None
     data_received: Optional[str] = None
-    tmr_e: Optional[float] = None
-    old_gbp: Optional[float] = None
-    gbp: Optional[float] = None
+    tmr_e: Optional[Union[float, str]] = None
+    old_gbp: Optional[Union[float, str]] = None
+    gbp: Optional[Union[float, str]] = None
     data_analysed_som: Optional[str] = None
     data_analysed_germ: Optional[str] = None
     sample_labeling: Optional[str] = None
@@ -110,18 +124,43 @@ class PatientWithSampleCreate(BaseModel):
     report_status: Optional[str] = None
     report_release_date: Optional[str] = None
     comments: Optional[str] = None
+
+    @field_validator("age", mode="before")
+    @classmethod
+    def parse_age(cls, v):
+        if v == "" or v is None:
+            return None
+        try:
+            return int(float(str(v)))
+        except:
+            return None
+
+    @field_validator("tmr_e", "old_gbp", "gbp", mode="before")
+    @classmethod
+    def parse_float(cls, v):
+        if v == "" or v is None:
+            return None
+        try:
+            return float(str(v))
+        except:
+            return None
 
 
 class PatientWithSampleUpdate(BaseModel):
-    # ── Which sample/record to update ─────────────────────────────────────────
-    sample_id: Optional[int] = None   # which SID row to update
-    record_id: Optional[int] = None   # which sample_record row to update
+    # Which sample/record to update
+    sample_id: Optional[int] = None
+    record_id: Optional[int] = None
 
-    # ── Patient fields ────────────────────────────────────────────────────────
-    aob_id: Optional[str] = None
+    # Patient fields
     name: Optional[str] = None
-    age: Optional[int] = None
     gender: Optional[str] = None
+
+    # Sample
+    sid: Optional[str] = None
+
+    # Sample Record (includes former patient fields)
+    aob_id: Optional[str] = None
+    age: Optional[Union[int, str]] = None
     detail_disease: Optional[str] = None
     organ_type: Optional[str] = None
     comorbidity: Optional[str] = None
@@ -129,11 +168,6 @@ class PatientWithSampleUpdate(BaseModel):
     metastasis: Optional[str] = None
     patient_status: Optional[str] = None
     consultation: Optional[str] = None
-
-    # ── Sample (SID) ──────────────────────────────────────────────────────────
-    sid: Optional[str] = None
-
-    # ── Sample Record ─────────────────────────────────────────────────────────
     new_case_label: Optional[str] = None
     additional: Optional[str] = None
     source: Optional[str] = None
@@ -144,9 +178,9 @@ class PatientWithSampleUpdate(BaseModel):
     research_report: Optional[str] = None
     sequencing_partner: Optional[str] = None
     data_received: Optional[str] = None
-    tmr_e: Optional[float] = None
-    old_gbp: Optional[float] = None
-    gbp: Optional[float] = None
+    tmr_e: Optional[Union[float, str]] = None
+    old_gbp: Optional[Union[float, str]] = None
+    gbp: Optional[Union[float, str]] = None
     data_analysed_som: Optional[str] = None
     data_analysed_germ: Optional[str] = None
     sample_labeling: Optional[str] = None
@@ -154,3 +188,23 @@ class PatientWithSampleUpdate(BaseModel):
     report_status: Optional[str] = None
     report_release_date: Optional[str] = None
     comments: Optional[str] = None
+
+    @field_validator("age", mode="before")
+    @classmethod
+    def parse_age(cls, v):
+        if v == "" or v is None:
+            return None
+        try:
+            return int(float(str(v)))
+        except:
+            return None
+
+    @field_validator("tmr_e", "old_gbp", "gbp", mode="before")
+    @classmethod
+    def parse_float(cls, v):
+        if v == "" or v is None:
+            return None
+        try:
+            return float(str(v))
+        except:
+            return None

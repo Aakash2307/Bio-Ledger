@@ -14,7 +14,6 @@ def create_sample(patient_id: int, sample: SampleCreate):
         conn.close()
         raise HTTPException(status_code=404, detail="Patient not found")
 
-    # SID must be unique
     cursor.execute("SELECT id FROM samples WHERE sid = ?", (sample.sid,))
     if cursor.fetchone():
         conn.close()
@@ -88,7 +87,11 @@ def create_sample_record(sample_id: int, record: SampleRecordCreate):
 
     cursor.execute("""
         INSERT INTO sample_records (
-            sample_ref, new_case_label, additional, source,
+            sample_ref,
+            aob_id, age, detail_disease, organ_type,
+            comorbidity, family_history, metastasis,
+            patient_status, consultation,
+            new_case_label, additional, source,
             sample_collection_date, dna_availability,
             sequencing, din, research_report,
             sequencing_partner, data_received,
@@ -97,9 +100,12 @@ def create_sample_record(sample_id: int, record: SampleRecordCreate):
             sample_labeling, analysis,
             report_status, report_release_date, comments
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         sample_id,
+        record.aob_id, record.age, record.detail_disease, record.organ_type,
+        record.comorbidity, record.family_history, record.metastasis,
+        record.patient_status, record.consultation,
         record.new_case_label, record.additional, record.source,
         record.sample_collection_date, record.dna_availability,
         record.sequencing, record.din, record.research_report,
@@ -127,6 +133,9 @@ def update_sample_record(record_id: int, record: SampleRecordUpdate):
 
     cursor.execute("""
         UPDATE sample_records SET
+            aob_id = ?, age = ?, detail_disease = ?, organ_type = ?,
+            comorbidity = ?, family_history = ?, metastasis = ?,
+            patient_status = ?, consultation = ?,
             new_case_label = ?, additional = ?, source = ?,
             sample_collection_date = ?, dna_availability = ?,
             sequencing = ?, din = ?, research_report = ?,
@@ -137,6 +146,9 @@ def update_sample_record(record_id: int, record: SampleRecordUpdate):
             report_status = ?, report_release_date = ?, comments = ?
         WHERE id = ?
     """, (
+        record.aob_id, record.age, record.detail_disease, record.organ_type,
+        record.comorbidity, record.family_history, record.metastasis,
+        record.patient_status, record.consultation,
         record.new_case_label, record.additional, record.source,
         record.sample_collection_date, record.dna_availability,
         record.sequencing, record.din, record.research_report,

@@ -9,13 +9,13 @@ def get_all_patients_service():
         SELECT
             p.id,
             p.patient_id,
-            p.aob_id,
             p.name,
-            p.age,
             p.gender,
             s.id          AS sample_id,
             s.sid,
             sr.id         AS record_id,
+            sr.aob_id,
+            sr.age,
             sr.new_case_label,
             sr.sequencing,
             sr.dna_availability,
@@ -42,11 +42,9 @@ def get_all_patients_service():
             patients[pid] = {
                 "id":         pid,
                 "patient_id": row["patient_id"],
-                "aob_id":     row["aob_id"],
                 "name":       row["name"],
-                "age":        row["age"],
                 "gender":     row["gender"],
-                "samples":    {}         # keyed by sample_id while building
+                "samples":    {}
             }
 
         # --- Sample level ---
@@ -63,6 +61,8 @@ def get_all_patients_service():
             if row["record_id"] is not None:
                 patients[pid]["samples"][sid]["records"].append({
                     "record_id":        row["record_id"],
+                    "aob_id":           row["aob_id"],
+                    "age":              row["age"],
                     "new_case_label":   row["new_case_label"],
                     "sequencing":       row["sequencing"],
                     "dna_availability": row["dna_availability"],

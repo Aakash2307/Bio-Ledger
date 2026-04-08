@@ -5,6 +5,7 @@ from app.schemas.patient_schema import PatientWithSampleCreate
 from app.utils import normalize_date
 from app.schemas.patient_schema import PatientWithSampleUpdate
 
+
 def get_all_patients():
     conn = get_connection()
     cursor = conn.cursor()
@@ -13,12 +14,8 @@ def get_all_patients():
         SELECT
             p.id,
             p.patient_id,
-            p.aob_id,
             p.name,
-            p.age,
             p.gender,
-            p.organ_type,
-            p.patient_status,
             COUNT(s.id) as total_samples
         FROM patients p
         LEFT JOIN samples s ON p.id = s.patient_ref
@@ -41,13 +38,11 @@ def get_patient_by_id(patient_id: int):
         conn.close()
         raise HTTPException(status_code=404, detail="Patient not found")
 
-    # Fetch all SIDs for this patient
     cursor.execute("SELECT * FROM samples WHERE patient_ref = ?", (patient_id,))
     samples = cursor.fetchall()
 
     sample_list = []
     for sample in samples:
-        # Fetch all records for each SID
         cursor.execute(
             "SELECT * FROM sample_records WHERE sample_ref = ?", (sample["id"],)
         )
@@ -70,26 +65,12 @@ def create_patient(patient: PatientCreate):
 
     try:
         cursor.execute("""
-            INSERT INTO patients (
-                patient_id, aob_id, name, age, gender,
-                detail_disease, organ_type,
-                comorbidity, family_history,
-                metastasis, patient_status, consultation
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO patients (patient_id, name, gender)
+            VALUES (?, ?, ?)
         """, (
             patient.patient_id,
-            patient.aob_id,
             patient.name,
-            patient.age,
             patient.gender,
-            patient.detail_disease,
-            patient.organ_type,
-            patient.comorbidity,
-            patient.family_history,
-            patient.metastasis,
-            patient.patient_status,
-            patient.consultation,
         ))
         conn.commit()
         new_id = cursor.lastrowid
@@ -112,16 +93,10 @@ def update_patient(patient_id: int, data: PatientUpdate):
 
     cursor.execute("""
         UPDATE patients SET
-            aob_id = ?, name = ?, age = ?, gender = ?,
-            detail_disease = ?, organ_type = ?,
-            comorbidity = ?, family_history = ?,
-            metastasis = ?, patient_status = ?, consultation = ?
+            name = ?, gender = ?
         WHERE id = ?
     """, (
-        data.aob_id, data.name, data.age, data.gender,
-        data.detail_disease, data.organ_type,
-        data.comorbidity, data.family_history,
-        data.metastasis, data.patient_status, data.consultation,
+        data.name, data.gender,
         patient_id,
     ))
 
@@ -142,11 +117,12 @@ def delete_patient(patient_id: int):
         conn.close()
         raise HTTPException(status_code=404, detail="Patient not found")
 
-    # Cascades handle samples + sample_records deletion (FK ON DELETE CASCADE)
     cursor.execute("DELETE FROM patients WHERE id = ?", (patient_id,))
     conn.commit()
     conn.close()
     return {"message": "Patient deleted successfully"}
+
+
 def create_patient_with_sample(data: PatientWithSampleCreate):
     conn = get_connection()
     cursor = conn.cursor()
@@ -154,22 +130,16 @@ def create_patient_with_sample(data: PatientWithSampleCreate):
     try:
         # ── 1. Insert Patient ─────────────────────────────────────────────────
         cursor.execute("""
-            INSERT INTO patients (
-                patient_id, aob_id, name, age, gender,
-                detail_disease, organ_type,
-                comorbidity, family_history,
-                metastasis, patient_status, consultation
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO patients (patient_id, name, gender)
+            VALUES (?, ?, ?)
         """, (
-            data.patient_id, data.aob_id, data.name, data.age, data.gender,
-            data.detail_disease, data.organ_type,
-            data.comorbidity, data.family_history,
-            data.metastasis, data.patient_status, data.consultation,
+            data.patient_id,
+            data.name,
+            data.gender,
         ))
         patient_db_id = cursor.lastrowid
 
-        # ── 2. Insert Sample (SID) — only if SID provided ─────────────────────
+        # ── 2. Insert Sample (SID) — only if SID provided ────────────────────
         sample_db_id = None
         if data.sid:
             cursor.execute(
@@ -182,7 +152,11 @@ def create_patient_with_sample(data: PatientWithSampleCreate):
         if sample_db_id:
             cursor.execute("""
                 INSERT INTO sample_records (
-                    sample_ref, new_case_label, additional, source,
+                    sample_ref,
+                    aob_id, age, detail_disease, organ_type,
+                    comorbidity, family_history, metastasis,
+                    patient_status, consultation,
+                    new_case_label, additional, source,
                     sample_collection_date, dna_availability,
                     sequencing, din, research_report,
                     sequencing_partner, data_received,
@@ -191,9 +165,12 @@ def create_patient_with_sample(data: PatientWithSampleCreate):
                     sample_labeling, analysis,
                     report_status, report_release_date, comments
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 sample_db_id,
+                data.aob_id, data.age, data.detail_disease, data.organ_type,
+                data.comorbidity, data.family_history, data.metastasis,
+                data.patient_status, data.consultation,
                 data.new_case_label, data.additional, data.source,
                 data.sample_collection_date, data.dna_availability,
                 data.sequencing, data.din, data.research_report,
@@ -219,7 +196,6 @@ def create_patient_with_sample(data: PatientWithSampleCreate):
     }
 
 
-
 def update_patient_with_sample(patient_id: int, data: PatientWithSampleUpdate):
     conn = get_connection()
     cursor = conn.cursor()
@@ -234,16 +210,10 @@ def update_patient_with_sample(patient_id: int, data: PatientWithSampleUpdate):
         # ── 2. Update patient ─────────────────────────────────────────────────
         cursor.execute("""
             UPDATE patients SET
-                aob_id = ?, name = ?, age = ?, gender = ?,
-                detail_disease = ?, organ_type = ?,
-                comorbidity = ?, family_history = ?,
-                metastasis = ?, patient_status = ?, consultation = ?
+                name = ?, gender = ?
             WHERE id = ?
         """, (
-            data.aob_id, data.name, data.age, data.gender,
-            data.detail_disease, data.organ_type,
-            data.comorbidity, data.family_history,
-            data.metastasis, data.patient_status, data.consultation,
+            data.name, data.gender,
             patient_id,
         ))
 
@@ -271,6 +241,9 @@ def update_patient_with_sample(patient_id: int, data: PatientWithSampleUpdate):
 
             cursor.execute("""
                 UPDATE sample_records SET
+                    aob_id = ?, age = ?, detail_disease = ?, organ_type = ?,
+                    comorbidity = ?, family_history = ?, metastasis = ?,
+                    patient_status = ?, consultation = ?,
                     new_case_label = ?, additional = ?, source = ?,
                     sample_collection_date = ?, dna_availability = ?,
                     sequencing = ?, din = ?, research_report = ?,
@@ -281,6 +254,9 @@ def update_patient_with_sample(patient_id: int, data: PatientWithSampleUpdate):
                     report_status = ?, report_release_date = ?, comments = ?
                 WHERE id = ?
             """, (
+                data.aob_id, data.age, data.detail_disease, data.organ_type,
+                data.comorbidity, data.family_history, data.metastasis,
+                data.patient_status, data.consultation,
                 data.new_case_label, data.additional, data.source,
                 data.sample_collection_date, data.dna_availability,
                 data.sequencing, data.din, data.research_report,

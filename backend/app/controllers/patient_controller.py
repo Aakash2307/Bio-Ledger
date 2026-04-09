@@ -165,7 +165,7 @@ def create_patient_with_sample(data: PatientWithSampleCreate):
                     sample_labeling, analysis,
                     report_status, report_release_date, comments
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 sample_db_id,
                 data.aob_id, data.age, data.detail_disease, data.organ_type,
@@ -300,3 +300,69 @@ def update_patient_with_sample(patient_id: int, data: PatientWithSampleUpdate):
         conn.rollback()
         conn.close()
         raise HTTPException(status_code=400, detail=str(e))
+    
+
+
+def get_patient_by_patient_id(patient_id: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM patients WHERE patient_id = ?", (patient_id,))
+    patient = cursor.fetchone()
+    conn.close()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return dict(patient)
+
+
+def add_sample_to_patient(patient_id: int, data: PatientWithSampleCreate):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT id FROM patients WHERE id = ?", (patient_id,))
+    if not cursor.fetchone():
+        conn.close()
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    try:
+        cursor.execute(
+            "INSERT INTO samples (patient_ref, sid) VALUES (?, ?)",
+            (patient_id, data.sid)
+        )
+        sample_db_id = cursor.lastrowid
+
+        cursor.execute("""
+            INSERT INTO sample_records (
+                sample_ref, aob_id, age, detail_disease, organ_type,
+                comorbidity, family_history, metastasis,
+                patient_status, consultation,
+                new_case_label, additional, source,
+                sample_collection_date, dna_availability,
+                sequencing, din, research_report,
+                sequencing_partner, data_received,
+                tmr_e, old_gbp, gbp,
+                data_analysed_som, data_analysed_germ,
+                sample_labeling, analysis,
+                report_status, report_release_date, comments
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            sample_db_id,
+            data.aob_id, data.age, data.detail_disease, data.organ_type,
+            data.comorbidity, data.family_history, data.metastasis,
+            data.patient_status, data.consultation,
+            data.new_case_label, data.additional, data.source,
+            data.sample_collection_date, data.dna_availability,
+            data.sequencing, data.din, data.research_report,
+            data.sequencing_partner, normalize_date(data.data_received),
+            data.tmr_e, data.old_gbp, data.gbp,
+            data.data_analysed_som, data.data_analysed_germ,
+            data.sample_labeling, data.analysis,
+            data.report_status, data.report_release_date, data.comments,
+        ))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        raise HTTPException(status_code=400, detail=str(e))
+
+    conn.close()
+    return {"message": "Sample added successfully", "sample_id": sample_db_id}

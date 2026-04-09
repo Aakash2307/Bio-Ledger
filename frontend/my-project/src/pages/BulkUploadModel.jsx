@@ -1,45 +1,95 @@
 import { useState, useRef, useCallback } from "react";
 import * as XLSX from "xlsx";
 
-// ── Column mapping: Excel header → DB field ──────────────────────────────────
-const PATIENT_FIELDS = [
-  "aob_id","sid","name","age","gender","patient_id",
-  "detail_disease","organ_type","comorbidity","family_history",
-  "metastasis","patient_status","consultation",
-];
-const SAMPLE_FIELDS = [
-  "new_case_label","additional","source","sample_collection_date",
-  "dna_availability","sequencing","din","research_report",
-  "sequencing_partner","data_received","tmr_e","data_analysed_som",
-  "data_analysed_germ","sample_labeling","analysis",
-  "report_status","report_release_date","comments",
+// ── Single source of truth: every Excel column → { db, bucket } ──────────────
+// bucket: "patient" | "sample"
+// The order here matches the actual Excel column order exactly.
+const COLUMN_DEFS = [
+  { excel: "AOB ID",                        db: "aob_id",                 bucket: "patient" },
+  { excel: "Sample ID",                     db: "sid",                    bucket: "sample"  },
+  { excel: "Name",                          db: "name",                   bucket: "patient" },
+  { excel: "Age",                           db: "age",                    bucket: "patient" },
+  { excel: "Gender",                        db: "gender",                 bucket: "patient" },
+  { excel: "Patient ID",                    db: "patient_id",             bucket: "patient" },
+  { excel: "New Case label",                db: "new_case_label",         bucket: "sample"  },
+  { excel: "Additional",                    db: "additional",             bucket: "sample"  },
+  { excel: "Source",                        db: "source",                 bucket: "sample"  },
+  { excel: "Detail Disease",                db: "detail_disease",         bucket: "patient" },
+  { excel: "Organ Type",                    db: "organ_type",             bucket: "patient" },
+  { excel: "Comorbidity",                   db: "comorbidity",            bucket: "patient" },
+  { excel: "Family history",                db: "family_history",         bucket: "patient" },
+  { excel: "Metastasis",                    db: "metastasis",             bucket: "patient" },
+  { excel: "Patient status",                db: "patient_status",         bucket: "patient" },
+  { excel: "Sample Collection Date",        db: "sample_collection_date", bucket: "sample"  },
+  { excel: "DNA availability",              db: "dna_availability",       bucket: "sample"  },
+  { excel: "Sequencing",                    db: "sequencing",             bucket: "sample"  },
+  { excel: "DIN",                           db: "din",                    bucket: "sample"  },
+  { excel: "Research/Report",               db: "research_report",        bucket: "sample"  },
+  { excel: "Sequencing partner (E)",        db: "sequencing_partner",     bucket: "sample"  },
+  { excel: "Data received (E)",             db: "data_received",          bucket: "sample"  },
+  { excel: "TMR-EGbp",                      db: "tmr_e",                  bucket: "sample"  },
+  { excel: "Old Gbp",                       db: "old_gbp",                bucket: "sample"  },
+  { excel: "Gbp",                           db: "gbp",                    bucket: "sample"  },
+  { excel: "Data analysed-E (Som)",         db: "data_analysed_som",      bucket: "sample"  },
+  { excel: "Data analysed-E (Germ)",        db: "data_analysed_germ",     bucket: "sample"  },
+  { excel: "Sample labeling",               db: "sample_labeling",        bucket: "sample"  },
+  { excel: "Analysis",                      db: "analysis",               bucket: "sample"  },
+  { excel: "Report (made/release)",         db: "report_status",          bucket: "sample"  },
+  { excel: "Report Release Date",           db: "report_release_date",    bucket: "sample"  },
+  { excel: "Comments (report sample ID)",   db: "comments",               bucket: "sample"  },
+  { excel: "Consultation",                  db: "consultation",           bucket: "patient" },
 ];
 
-// Normalise header string → snake_case key
-function normaliseKey(raw) {
-  return raw
-    .toString()
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "_")
-    .replace(/[^a-z0-9_]/g, "");
+// Fast lookup: normalised Excel header → COLUMN_DEF
+const HEADER_LOOKUP = {};
+COLUMN_DEFS.forEach(def => {
+  HEADER_LOOKUP[def.excel.trim().toLowerCase()] = def;
+});
+
+// ── Template download ─────────────────────────────────────────────────────────
+function downloadTemplate() {
+  const headers = COLUMN_DEFS.map(d => d.excel);
+  const ws = XLSX.utils.aoa_to_sheet([headers]);
+  ws["!cols"] = headers.map(() => ({ wch: 26 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Samples");
+  XLSX.writeFile(wb, "sample_template.xlsx");
 }
 
-// Parse xlsx/csv → array of plain objects with normalised keys
+// ── Parse Excel → rows with { patientPayload, samplePayload } ─────────────────
 function parseExcel(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const wb = XLSX.read(e.target.result, { type: "array" });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const raw = XLSX.utils.sheet_to_json(ws, { defval: "" });
-        const rows = raw.map((row) => {
-          const out = {};
-          for (const [k, v] of Object.entries(row)) out[normaliseKey(k)] = v;
-          return out;
+        const wb  = XLSX.read(e.target.result, { type: "array" });
+        const ws  = wb.Sheets[wb.SheetNames[0]];
+        const raw = XLSX.utils.sheet_to_json(ws, { defval: "", header: 1 });
+        if (!raw.length) { resolve([]); return; }
+
+        // Map each column index → COLUMN_DEF (or null if unrecognised)
+        const headerRow = raw[0];
+        const colDefs   = headerRow.map(h => HEADER_LOOKUP[String(h).trim().toLowerCase()] ?? null);
+
+        const rows = raw.slice(1).map(row => {
+          const patientPayload = {};
+          const samplePayload  = {};
+          colDefs.forEach((def, idx) => {
+            if (!def) return;
+            const val = row[idx] ?? "";
+            if (String(val).trim() === "") return;
+            if (def.bucket === "patient") patientPayload[def.db] = val;
+            else                          samplePayload[def.db]  = val;
+          });
+          return { patientPayload, samplePayload };
         });
-        resolve(rows);
+
+        // Drop fully empty rows
+        const nonEmpty = rows.filter(r =>
+          Object.keys(r.patientPayload).length > 0 ||
+          Object.keys(r.samplePayload).length  > 0
+        );
+        resolve(nonEmpty);
       } catch (err) {
         reject(err);
       }
@@ -49,25 +99,14 @@ function parseExcel(file) {
   });
 }
 
-// Download a blank template xlsx
-function downloadTemplate() {
-  const headers = [...PATIENT_FIELDS, ...SAMPLE_FIELDS];
-  const ws = XLSX.utils.aoa_to_sheet([headers]);
-  // Column widths
-  ws["!cols"] = headers.map(() => ({ wch: 22 }));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Samples");
-  XLSX.writeFile(wb, "sample_template.xlsx");
-}
-
 // ── Status pill ───────────────────────────────────────────────────────────────
 function Pill({ status }) {
   const map = {
-    pending:  { bg: "#f1f5f9", color: "#64748b" },
-    success:  { bg: "#e8f8f0", color: "#16a34a" },
-    created:  { bg: "#eff6ff", color: "#2563eb" },
-    error:    { bg: "#fef2f2", color: "#dc2626" },
-    uploading:{ bg: "#fefce8", color: "#ca8a04" },
+    pending:   { bg: "#f1f5f9", color: "#64748b" },
+    success:   { bg: "#e8f8f0", color: "#16a34a" },
+    created:   { bg: "#eff6ff", color: "#2563eb" },
+    error:     { bg: "#fef2f2", color: "#dc2626" },
+    uploading: { bg: "#fefce8", color: "#ca8a04" },
   };
   const cfg = map[status] || map.pending;
   const labels = {
@@ -86,14 +125,14 @@ function Pill({ status }) {
 
 // ── Main Modal ────────────────────────────────────────────────────────────────
 export default function BulkUploadModal({ onClose, onDone }) {
-  const [step, setStep]           = useState("drop");   // drop | preview | uploading | done
-  const [rows, setRows]           = useState([]);
-  const [rowStatus, setRowStatus] = useState([]);       // per-row status
-  const [rowError, setRowError]   = useState([]);       // per-row error msg
-  const [dragOver, setDragOver]   = useState(false);
+  const [step, setStep]             = useState("drop");
+  const [rows, setRows]             = useState([]);
+  const [rowStatus, setRowStatus]   = useState([]);
+  const [rowError, setRowError]     = useState([]);
+  const [dragOver, setDragOver]     = useState(false);
   const [parseError, setParseError] = useState(null);
-  const [summary, setSummary]     = useState(null);
-  const fileRef                   = useRef();
+  const [summary, setSummary]       = useState(null);
+  const fileRef                     = useRef();
 
   // ── Handle file ──
   const handleFile = useCallback(async (file) => {
@@ -105,26 +144,28 @@ export default function BulkUploadModal({ onClose, onDone }) {
       const parsed = await parseExcel(file);
       if (!parsed.length) { setParseError("The file appears to be empty."); return; }
 
-      // ── Column-level required check ──
-      if (!("patient_id" in parsed[0])) {
-        setParseError("Missing required column: patient_id. Please use the template."); return;
+      // Column-level check
+      const first = parsed[0];
+      if (!("patient_id" in first.patientPayload)) {
+        setParseError('Missing required column: "Patient ID". Please use the template.'); return;
       }
-      if (!("sid" in parsed[0])) {
-        setParseError("Missing required column: sid (Sample ID). Please use the template."); return;
+      if (!("sid" in first.samplePayload)) {
+        setParseError('Missing required column: "Sample ID". Please use the template.'); return;
       }
 
-      // ── Row-level required check: flag rows missing patient_id or sid ──
-      const rowErrors = parsed.map((row, i) => {
+      // Row-level check
+      const rowErrors = parsed.map((r, i) => {
         const missing = [];
-        if (!String(row.patient_id ?? "").trim()) missing.push("patient_id");
-        if (!String(row.sid        ?? "").trim()) missing.push("sid");
+        if (!String(r.patientPayload.patient_id ?? "").trim()) missing.push("Patient ID");
+        if (!String(r.samplePayload.sid         ?? "").trim()) missing.push("Sample ID");
         return missing.length ? `Row ${i + 1}: missing ${missing.join(", ")}` : "";
       });
-
-      const invalidRows = rowErrors.filter(Boolean);
-      if (invalidRows.length) {
+      const invalid = rowErrors.filter(Boolean);
+      if (invalid.length) {
         setParseError(
-          `${invalidRows.length} row(s) are missing required fields:\n${invalidRows.slice(0, 5).join("\n")}${invalidRows.length > 5 ? `\n…and ${invalidRows.length - 5} more` : ""}`
+          `${invalid.length} row(s) are missing required fields:\n` +
+          invalid.slice(0, 5).join("\n") +
+          (invalid.length > 5 ? `\n…and ${invalid.length - 5} more` : "")
         );
         return;
       }
@@ -154,12 +195,11 @@ export default function BulkUploadModal({ onClose, onDone }) {
       statuses[i] = "uploading";
       setRowStatus([...statuses]);
 
-      const row = rows[i];
+      const { patientPayload, samplePayload } = rows[i];
 
-      // ── Runtime required field check ──
       const missing = [];
-      if (!String(row.patient_id ?? "").trim()) missing.push("patient_id");
-      if (!String(row.sid        ?? "").trim()) missing.push("sid");
+      if (!String(patientPayload.patient_id ?? "").trim()) missing.push("Patient ID");
+      if (!String(samplePayload.sid         ?? "").trim()) missing.push("Sample ID");
       if (missing.length) {
         statuses[i] = "error";
         errors[i]   = `Missing required field(s): ${missing.join(", ")}`;
@@ -169,27 +209,19 @@ export default function BulkUploadModal({ onClose, onDone }) {
         continue;
       }
 
-      // Split into patient payload + sample payload
-      const patientPayload = {};
-      const samplePayload  = {};
-      for (const f of PATIENT_FIELDS) if (row[f] !== "" && row[f] !== undefined) patientPayload[f] = row[f];
-      for (const f of SAMPLE_FIELDS)  if (row[f] !== "" && row[f] !== undefined) samplePayload[f]  = row[f];
-
       try {
-        // 1. Try to find or create patient
-        let patientDbId = null;
+        // 1. Find or create patient
+        let patientDbId   = null;
         let patientCreated = false;
 
-        // Check if patient exists
-        const checkRes = await fetch(`http://localhost:8000/patients`);
+        const checkRes    = await fetch(`http://localhost:8000/patients`);
         const allPatients = await checkRes.json();
-        const existing = allPatients.find(p => p.patient_id === String(row.patient_id));
+        const existing    = allPatients.find(p => p.patient_id === String(patientPayload.patient_id));
 
         if (existing) {
           patientDbId = existing.id;
         } else {
-          // Auto-create patient
-          if (!patientPayload.name) patientPayload.name = patientPayload.patient_id; // fallback name
+          if (!patientPayload.name) patientPayload.name = String(patientPayload.patient_id);
           const createRes = await fetch("http://localhost:8000/patients/", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -199,12 +231,11 @@ export default function BulkUploadModal({ onClose, onDone }) {
             const err = await createRes.json();
             throw new Error(err.detail || "Failed to create patient");
           }
-          // Re-fetch to get new ID
           const refreshRes = await fetch(`http://localhost:8000/patients`);
           const refreshed  = await refreshRes.json();
-          const newP = refreshed.find(p => p.patient_id === String(row.patient_id));
-          patientDbId    = newP?.id;
-          patientCreated = true;
+          const newP       = refreshed.find(p => p.patient_id === String(patientPayload.patient_id));
+          patientDbId      = newP?.id;
+          patientCreated   = true;
         }
 
         if (!patientDbId) throw new Error("Could not resolve patient ID after creation");
@@ -238,7 +269,6 @@ export default function BulkUploadModal({ onClose, onDone }) {
     if (onDone) onDone();
   }
 
-  // ── Styles ──
   const overlay = {
     position: "fixed", inset: 0, zIndex: 1000,
     background: "rgba(15,23,42,0.55)", backdropFilter: "blur(4px)",
@@ -299,10 +329,8 @@ export default function BulkUploadModal({ onClose, onDone }) {
           {/* ── Body ── */}
           <div style={{ padding: "24px 28px" }}>
 
-            {/* STEP: drop */}
             {step === "drop" && (
               <>
-                {/* Drop zone */}
                 <div
                   onDragOver={e => { e.preventDefault(); setDragOver(true); }}
                   onDragLeave={() => setDragOver(false)}
@@ -332,11 +360,11 @@ export default function BulkUploadModal({ onClose, onDone }) {
                     marginTop: 14, padding: "11px 16px", borderRadius: 10,
                     background: "#fef2f2", border: "1px solid #fecaca",
                     color: "#dc2626", fontSize: 13, fontWeight: 500,
-                    display: "flex", alignItems: "center", gap: 8,
+                    display: "flex", alignItems: "flex-start", gap: 8,
+                    whiteSpace: "pre-line",
                   }}>⚠️ {parseError}</div>
                 )}
 
-                {/* Template download */}
                 <div style={{
                   marginTop: 20, padding: "16px 20px", borderRadius: 12,
                   background: "#f8fafc", border: "1px solid #e8edf3",
@@ -345,7 +373,7 @@ export default function BulkUploadModal({ onClose, onDone }) {
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>Need a template?</div>
                     <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
-                      Download a blank Excel file with all required columns pre-filled
+                      Download a blank Excel file with all columns in the correct order
                     </div>
                   </div>
                   <button className="template-btn" onClick={downloadTemplate} style={{
@@ -359,26 +387,32 @@ export default function BulkUploadModal({ onClose, onDone }) {
                   </button>
                 </div>
 
-                {/* Column reference */}
+                {/* Column reference — patient | sample */}
                 <div style={{ marginTop: 20 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>
-                    Required & Optional Columns
+                    Column Reference
                   </div>
-                  <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-                    <div style={{ flex: 1, minWidth: 200 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: "#2563eb", marginBottom: 6 }}>Patient Fields</div>
-                      {PATIENT_FIELDS.map(f => (
-                        <div key={f} style={{ fontSize: 12, color: "#64748b", padding: "2px 0", fontFamily: "'DM Mono', monospace" }}>
-                          {(f === "patient_id" || f === "sid")
-                            ? <strong style={{ color: "#dc2626" }}>{f} *</strong>
-                            : f}
+                  <div style={{ display: "flex", gap: 16 }}>
+                    <div style={{ flex: 1, background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "12px 14px" }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "#2563eb", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+                        Patient fields
+                      </div>
+                      {COLUMN_DEFS.filter(d => d.bucket === "patient").map(d => (
+                        <div key={d.db} style={{ fontSize: 12, padding: "3px 0", display: "flex", alignItems: "center", gap: 6 }}>
+                          {d.db === "patient_id" && <span style={{ color: "#dc2626", fontWeight: 700, fontSize: 10 }}>*</span>}
+                          <span style={{ color: "#334155", fontFamily: "'DM Mono', monospace" }}>{d.excel}</span>
                         </div>
                       ))}
                     </div>
-                    <div style={{ flex: 1, minWidth: 200 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: "#7c3aed", marginBottom: 6 }}>Sample Fields</div>
-                      {SAMPLE_FIELDS.map(f => (
-                        <div key={f} style={{ fontSize: 12, color: "#64748b", padding: "2px 0", fontFamily: "'DM Mono', monospace" }}>{f}</div>
+                    <div style={{ flex: 1, background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "12px 14px" }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "#7c3aed", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+                        Sample fields
+                      </div>
+                      {COLUMN_DEFS.filter(d => d.bucket === "sample").map(d => (
+                        <div key={d.db} style={{ fontSize: 12, padding: "3px 0", display: "flex", alignItems: "center", gap: 6 }}>
+                          {d.db === "sid" && <span style={{ color: "#dc2626", fontWeight: 700, fontSize: 10 }}>*</span>}
+                          <span style={{ color: "#334155", fontFamily: "'DM Mono', monospace" }}>{d.excel}</span>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -387,10 +421,8 @@ export default function BulkUploadModal({ onClose, onDone }) {
               </>
             )}
 
-            {/* STEP: preview or uploading or done */}
             {(step === "preview" || step === "uploading" || step === "done") && (
               <>
-                {/* Summary bar */}
                 {step === "done" && summary && (
                   <div style={{
                     marginBottom: 20, padding: "14px 20px", borderRadius: 12,
@@ -417,7 +449,6 @@ export default function BulkUploadModal({ onClose, onDone }) {
                   </div>
                 )}
 
-                {/* Table */}
                 <div style={{
                   border: "1px solid #e8edf3", borderRadius: 12, overflow: "hidden",
                   maxHeight: 380, overflowY: "auto",
@@ -425,7 +456,7 @@ export default function BulkUploadModal({ onClose, onDone }) {
                   <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
                     <thead style={{ position: "sticky", top: 0, zIndex: 5 }}>
                       <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e8edf3" }}>
-                        {["#", "patient_id *", "name", "sid *", "new_case_label", "sequencing", "data_received", "Status"].map(h => (
+                        {["#", "Patient ID *", "Name", "Sample ID *", "New Case label", "Sequencing", "Data received", "Status"].map(h => (
                           <th key={h} style={{
                             padding: "10px 14px", textAlign: "left",
                             fontSize: 10, fontWeight: 700, color: "#94a3b8",
@@ -436,44 +467,48 @@ export default function BulkUploadModal({ onClose, onDone }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map((row, i) => (
-                        <tr key={i} className="row-hover" style={{
-                          borderBottom: i < rows.length - 1 ? "1px solid #f1f5f9" : "none",
-                          background: "#fff",
-                        }}>
-                          <td style={{ padding: "11px 14px", fontSize: 12, color: "#94a3b8", fontFamily: "'DM Mono', monospace" }}>{i + 1}</td>
-                          <td style={{ padding: "11px 14px", fontSize: 12, fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>
-                            {row.patient_id
-                              ? <span style={{ color: "#2563eb" }}>{row.patient_id}</span>
-                              : <span style={{ color: "#dc2626", fontWeight: 700 }}>⚠ missing</span>}
-                          </td>
-                          <td style={{ padding: "11px 14px", fontSize: 13, color: "#0f172a" }}>{row.name || "—"}</td>
-                          <td style={{ padding: "11px 14px", fontSize: 12, fontFamily: "'DM Mono', monospace" }}>
-                            {row.sid
-                              ? <span style={{ color: "#64748b" }}>{row.sid}</span>
-                              : <span style={{ color: "#dc2626", fontWeight: 700 }}>⚠ missing</span>}
-                          </td>
-                          <td style={{ padding: "11px 14px", fontSize: 12, color: "#7c3aed", fontFamily: "'DM Mono', monospace" }}>{row.new_case_label || "—"}</td>
-                          <td style={{ padding: "11px 14px", fontSize: 12, color: "#64748b" }}>{row.sequencing || "—"}</td>
-                          <td style={{ padding: "11px 14px", fontSize: 12, color: "#64748b" }}>{row.data_received || "—"}</td>
-                          <td style={{ padding: "11px 14px" }}>
-                            {step === "uploading" && rowStatus[i] === "uploading" ? (
-                              <div style={{
-                                width: 16, height: 16, borderRadius: "50%",
-                                border: "2px solid #e2e8f0", borderTopColor: "#2563eb",
-                                animation: "spin 0.7s linear infinite", display: "inline-block",
-                              }} />
-                            ) : (
-                              <div>
-                                <Pill status={rowStatus[i]} />
-                                {rowError[i] && (
-                                  <div style={{ fontSize: 10, color: "#dc2626", marginTop: 3 }}>{rowError[i]}</div>
-                                )}
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                      {rows.map((row, i) => {
+                        const p = row.patientPayload;
+                        const s = row.samplePayload;
+                        return (
+                          <tr key={i} className="row-hover" style={{
+                            borderBottom: i < rows.length - 1 ? "1px solid #f1f5f9" : "none",
+                            background: "#fff",
+                          }}>
+                            <td style={{ padding: "11px 14px", fontSize: 12, color: "#94a3b8", fontFamily: "'DM Mono', monospace" }}>{i + 1}</td>
+                            <td style={{ padding: "11px 14px", fontSize: 12, fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>
+                              {p.patient_id
+                                ? <span style={{ color: "#2563eb" }}>{p.patient_id}</span>
+                                : <span style={{ color: "#dc2626", fontWeight: 700 }}>⚠ missing</span>}
+                            </td>
+                            <td style={{ padding: "11px 14px", fontSize: 13, color: "#0f172a" }}>{p.name || "—"}</td>
+                            <td style={{ padding: "11px 14px", fontSize: 12, fontFamily: "'DM Mono', monospace" }}>
+                              {s.sid
+                                ? <span style={{ color: "#64748b" }}>{s.sid}</span>
+                                : <span style={{ color: "#dc2626", fontWeight: 700 }}>⚠ missing</span>}
+                            </td>
+                            <td style={{ padding: "11px 14px", fontSize: 12, color: "#7c3aed", fontFamily: "'DM Mono', monospace" }}>{s.new_case_label || "—"}</td>
+                            <td style={{ padding: "11px 14px", fontSize: 12, color: "#64748b" }}>{s.sequencing || "—"}</td>
+                            <td style={{ padding: "11px 14px", fontSize: 12, color: "#64748b" }}>{s.data_received || "—"}</td>
+                            <td style={{ padding: "11px 14px" }}>
+                              {step === "uploading" && rowStatus[i] === "uploading" ? (
+                                <div style={{
+                                  width: 16, height: 16, borderRadius: "50%",
+                                  border: "2px solid #e2e8f0", borderTopColor: "#2563eb",
+                                  animation: "spin 0.7s linear infinite", display: "inline-block",
+                                }} />
+                              ) : (
+                                <div>
+                                  <Pill status={rowStatus[i]} />
+                                  {rowError[i] && (
+                                    <div style={{ fontSize: 10, color: "#dc2626", marginTop: 3 }}>{rowError[i]}</div>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

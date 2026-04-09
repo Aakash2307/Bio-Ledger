@@ -136,3 +136,22 @@ export async function getPatientSummary() {
   if (!res.ok) throw new Error("Failed to fetch patient summary");
   return res.json();
 }
+
+// Check if a patient_id string already exists
+export async function getPatientByPatientId(patientId) {
+  const res = await fetch(`${BASE_URL}/patients/by-patient-id/${patientId}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error("Failed to check patient");
+  return res.json(); // returns { id, patient_id, name, gender }
+}
+
+// Add a new sample to an existing patient (by db id)
+export async function addSampleToPatient(dbId, payload) {
+  const res = await fetch(`${BASE_URL}/patients/${dbId}/add-sample`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}

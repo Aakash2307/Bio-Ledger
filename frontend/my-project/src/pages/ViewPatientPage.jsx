@@ -753,6 +753,7 @@ export default function ViewPatientPage() {
                         { label: "Patient ID", value: patient.patient_id },
                         { label: "SID", value: form?.sid },
                         { label: "Age", value: sample?.age },
+                        { label: "Gender", value: patient.gender},
                         { label: "Patient Status", value: sample?.patient_status },
 
                       ]
@@ -767,7 +768,7 @@ export default function ViewPatientPage() {
                             </span>
                           </div>
                         ))}
-                      {patient.age && (
+                      {/* {patient.age && (
                         <div style={{ padding: "4px 12px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#2563eb" }}>
                           {patient.age} yrs
                         </div>
@@ -776,7 +777,7 @@ export default function ViewPatientPage() {
                         <div style={{ padding: "4px 12px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#475569" }}>
                           {patient.gender}
                         </div>
-                      )}
+                      )} */}
                     </div>
                   </div>
                 </div>
@@ -883,7 +884,10 @@ export default function ViewPatientPage() {
                 <EditSection icon="📊" title="Data & Analysis" delay={0.2}>
                   <EditGrid>
                     <EditRadio label="Data Received" value={form?.data_received} onChange={(v) => set("data_received", v)} options={["Yes", "No"]} />
-                    <EditField label="TMR-E (Gbp)" value={form?.tmr_e} onChange={(v) => set("tmr_e", v)} />
+                    <EditField label="TMR-E" value={form?.tmr_e} onChange={(v) => set("tmr_e", v)} />
+                    <EditField label="Old Gbp" value={form?.old_gbp} onChange={(v) => set("old_gbp", v)} />
+                    <EditField label="Gbp" value={form?.gbp} onChange={(v) => set("gbp", v)} />
+
                     <EditRadio label="Data Analysed (Som)" value={form?.data_analysed_som} onChange={(v) => set("data_analysed_som", v)} options={["Yes", "No"]} />
                     <EditRadio label="Data Analysed (Germ)" value={form?.data_analysed_germ} onChange={(v) => set("data_analysed_germ", v)} options={["Yes", "No"]} />
                     <EditField label="Analysis" value={form?.analysis} onChange={(v) => set("analysis", v)} wide />
@@ -893,7 +897,9 @@ export default function ViewPatientPage() {
                 <Section icon="📊" title="Data & Analysis" delay={0.2}>
                   <FieldGrid>
                     <FieldItem label="Data Received" value={sample?.data_received} />
-                    <FieldItem label="TMR-E (Gbp)" value={sample?.tmr_e} mono />
+                    <FieldItem label="TMR-E" value={sample?.tmr_e} mono />
+                    <FieldItem label="Old Gbp" value={sample?.old_gbp} mono />
+                    <FieldItem label="Gbp" value={sample?.gbp} mono />
                     <FieldItem label="Data Analysed (Som)" value={sample?.data_analysed_som} />
                     <FieldItem label="Data Analysed (Germ)" value={sample?.data_analysed_germ} />
                     <FieldItem label="Analysis" value={sample?.analysis} wide />

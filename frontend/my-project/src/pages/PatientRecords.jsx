@@ -3,7 +3,7 @@ import { getPatients, getPatientDetails } from "../api";
 import logo from "../assets/tzarnewlogo.png";
 import { useNavigate } from "react-router-dom";
 import BulkUploadModal from "./BulkUploadModel";
-import { deletePatient as deletePatientApi } from "../api";
+import { deletePatient as deletePatientApi, deleteSample as deleteSampleApi } from "../api";
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 const statusConfig = {
@@ -104,8 +104,9 @@ function TrashIcon({ style }) {
 }
 
 // ─── Expanded samples panel ───────────────────────────────────────────────────
-function ExpandedSamples({ patientId, selectedSample, onOpenSample, navigate }) {
+function ExpandedSamples({ patientId, selectedSample, onOpenSample, navigate, onDeleteSample }) {
   const [samples, setSamples] = React.useState(null);
+  const [deletingRow, setDeletingRow] = React.useState(null);
 
   React.useEffect(() => {
     getPatientDetails(patientId)
@@ -125,6 +126,21 @@ function ExpandedSamples({ patientId, selectedSample, onOpenSample, navigate }) 
       .catch(() => setSamples([]));
   }, [patientId]);
 
+  async function handleDeleteSample(samp, e) {
+    e.stopPropagation();
+    if (!confirm(`Delete sample "${samp.sid || samp.sampleId}"?\n\nThis cannot be undone.`)) return;
+    setDeletingRow(samp.sampleId);
+    try {
+      await deleteSampleApi(samp.sampleId);
+      setSamples(prev => prev.filter(s => s.sampleId !== samp.sampleId));
+      onDeleteSample(samp.sampleId); // notify parent to clear panel if needed
+    } catch {
+      alert("Failed to delete sample. Please try again.");
+    } finally {
+      setDeletingRow(null);
+    }
+  }
+
   if (!samples) {
     return (
       <div style={{ background: "#f8faff", borderTop: "1px solid #dbeafe", padding: "14px 16px" }}>
@@ -141,43 +157,102 @@ function ExpandedSamples({ patientId, selectedSample, onOpenSample, navigate }) 
     );
   }
 
+  const COLS = "44px 1fr 1fr 1fr 1fr 1fr 44px";
+
   return (
     <div style={{ background: "#f8faff", borderTop: "1px solid #dbeafe", animation: "expandIn 0.18s ease", transformOrigin: "top" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 1fr 1fr 1fr 1fr", padding: "8px 0", borderBottom: "1px solid #e2e8f0" }}>
+      {/* Header */}
+      <div style={{ display: "grid", gridTemplateColumns: COLS, padding: "8px 0", borderBottom: "1px solid #e2e8f0" }}>
         <div />
-        {["SID", "Case Label", "Sequencing", "DNA Availability", "Report Status"].map(h => (
-          <div key={h} style={{ padding: "0 16px", fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: "'DM Mono', monospace" }}>{h}</div>
+        {["SID", "Case Label", "Sequencing", "DNA Availability", "Report Status", ""].map((h, i) => (
+          <div key={i} style={{
+            padding: "0 16px", fontSize: 10, fontWeight: 700, color: "#94a3b8",
+            textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: "'DM Mono', monospace",
+          }}>{h}</div>
         ))}
       </div>
+
+      {/* Rows */}
       {samples.map((samp, si) => {
         const isActiveSample = selectedSample?.patient?.id === patientId && selectedSample?.sample?.id === samp.sampleId;
+        const isDeleting = deletingRow === samp.sampleId;
+
         return (
           <div
             key={`${patientId}-s-${samp.sampleId}-r-${samp.recordId ?? si}`}
             className={`sample-row${isActiveSample ? " active-sample" : ""}`}
             onClick={(e) => {
+              if (isDeleting) return;
               if (e.detail === 2) { navigate(`/view-patient/${patientId}/${samp.sampleId}`); return; }
               onOpenSample(patientId, samp.sampleId);
             }}
-            style={{ display: "grid", gridTemplateColumns: "44px 1fr 1fr 1fr 1fr 1fr", padding: "11px 0", borderBottom: si < samples.length - 1 ? "1px solid #e8edf3" : "none", background: isActiveSample ? "#dbeafe" : "transparent", transition: "background 0.1s" }}
+            style={{
+              display: "grid", gridTemplateColumns: COLS,
+              padding: "11px 0",
+              borderBottom: si < samples.length - 1 ? "1px solid #e8edf3" : "none",
+              background: isActiveSample ? "#dbeafe" : "transparent",
+              transition: "background 0.1s",
+              opacity: isDeleting ? 0.5 : 1,
+            }}
           >
+            {/* Dot */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: isActiveSample ? "#2563eb" : "#93c5fd" }} />
             </div>
+
+            {/* SID */}
             <div style={{ padding: "0 16px" }}>
               <span style={{ fontSize: 12, color: "#64748b", fontFamily: "'DM Mono', monospace" }}>{samp.sid || "—"}</span>
             </div>
+
+            {/* Case Label */}
             <div style={{ padding: "0 16px" }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: "#1e40af", fontFamily: "'DM Mono', monospace" }}>{samp.new_case_label || "No Label"}</span>
             </div>
+
+            {/* Sequencing */}
             <div style={{ padding: "0 16px" }}>
               <span style={{ fontSize: 12, color: "#64748b" }}>{samp.sequencing || "—"}</span>
             </div>
+
+            {/* DNA Availability */}
             <div style={{ padding: "0 16px" }}>
               <span style={{ fontSize: 12, color: "#64748b" }}>{samp.dna_availability || "—"}</span>
             </div>
+
+            {/* Report Status */}
             <div style={{ padding: "0 16px" }}>
               <span style={{ fontSize: 12, color: "#64748b" }}>{samp.report_status || "—"}</span>
+            </div>
+
+            {/* Delete button */}
+            <div
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", paddingRight: 8 }}
+              onClick={e => e.stopPropagation()}
+            >
+              <button
+                title="Delete sample"
+                className={`delete-btn${isDeleting ? " deleting" : ""}`}
+                onClick={e => handleDeleteSample(samp, e)}
+                style={{
+                  width: 26, height: 26, borderRadius: 6,
+                  border: "1px solid transparent",
+                  background: "transparent",
+                  cursor: isDeleting ? "not-allowed" : "pointer",
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  color: "#94a3b8",
+                }}
+              >
+                {isDeleting ? (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                    stroke="#dc2626" strokeWidth="2.5" strokeLinecap="round"
+                    style={{ animation: "spin 0.7s linear infinite" }}>
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                  </svg>
+                ) : (
+                  <TrashIcon style={{ transition: "color 0.15s" }} />
+                )}
+              </button>
             </div>
           </div>
         );
@@ -239,6 +314,14 @@ export default function PatientRecords() {
       alert("Failed to delete patient. Please try again.");
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  // Called by ExpandedSamples when a sample is deleted — clears side panel if needed
+  function handleSampleDeleted(deletedSampleId) {
+    if (selectedSample?.sample?.id === deletedSampleId) {
+      setSelectedSample(null);
+      setFullDetail(null);
     }
   }
 
@@ -586,6 +669,7 @@ export default function PatientRecords() {
                                     selectedSample={selectedSample}
                                     onOpenSample={openSample}
                                     navigate={navigate}
+                                    onDeleteSample={handleSampleDeleted}
                                   />
                                 </td>
                               </tr>

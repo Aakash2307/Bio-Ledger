@@ -329,6 +329,8 @@ def add_sample_to_patient(patient_id: int, data: PatientWithSampleCreate):
             (patient_id, data.sid)
         )
         sample_db_id = cursor.lastrowid
+        print(f"✅ Sample inserted: {sample_db_id}")
+        print(f"📦 Data received: {data.dict()}")  # ← shows ALL fields coming in
 
         cursor.execute("""
             INSERT INTO sample_records (
@@ -358,11 +360,14 @@ def add_sample_to_patient(patient_id: int, data: PatientWithSampleCreate):
             data.sample_labeling, data.analysis,
             data.report_status, data.report_release_date, data.comments,
         ))
+        print(f"✅ Sample record inserted successfully")
         conn.commit()
+        print(f"✅ Committed")
     except Exception as e:
         conn.rollback()
         conn.close()
+        print(f"❌ ERROR: {e}")  # ← shows exact SQL error
         raise HTTPException(status_code=400, detail=str(e))
 
     conn.close()
-    return {"message": "Sample added successfully", "sample_id": sample_db_id}
+    return get_patient_by_id(patient_id)

@@ -144,6 +144,24 @@ class PatientWithSampleCreate(BaseModel):
             return float(str(v))
         except:
             return None
+        
+
+    @field_validator(
+        "aob_id", "detail_disease", "organ_type", "comorbidity",
+        "family_history", "metastasis", "patient_status", "consultation",
+        "new_case_label", "additional", "source", "sample_collection_date",
+        "dna_availability", "sequencing", "din", "research_report",
+        "sequencing_partner", "data_received", "data_analysed_som",
+        "data_analysed_germ", "sample_labeling", "analysis",
+        "report_status", "report_release_date", "comments",
+        "name", "gender", "patient_id",
+        mode="before"
+    )
+    @classmethod
+    def coerce_to_str(cls, v):
+        if v is None or v == "":
+            return None
+        return str(v)
 
 
 class PatientWithSampleUpdate(BaseModel):

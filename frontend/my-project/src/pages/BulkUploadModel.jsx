@@ -2,42 +2,42 @@ import { useState, useRef, useCallback } from "react";
 import * as XLSX from "xlsx";
 
 // ── Single source of truth: every Excel column → { db, bucket } ──────────────
-// bucket: "patient" | "sample"
-// The order here matches the actual Excel column order exactly.
+// bucket: "patient" = patients table only (patient_id, name, gender)
+// bucket: "record"  = flat PatientWithSampleCreate payload (sid + all record fields)
 const COLUMN_DEFS = [
-  { excel: "AOB ID",                        db: "aob_id",                 bucket: "patient" },
-  { excel: "Sample ID",                     db: "sid",                    bucket: "sample"  },
+  { excel: "AOB ID",                        db: "aob_id",                 bucket: "record"  },
+  { excel: "Sample ID",                     db: "sid",                    bucket: "record"  },
   { excel: "Name",                          db: "name",                   bucket: "patient" },
-  { excel: "Age",                           db: "age",                    bucket: "patient" },
+  { excel: "Age",                           db: "age",                    bucket: "record"  },
   { excel: "Gender",                        db: "gender",                 bucket: "patient" },
   { excel: "Patient ID",                    db: "patient_id",             bucket: "patient" },
-  { excel: "New Case label",                db: "new_case_label",         bucket: "sample"  },
-  { excel: "Additional",                    db: "additional",             bucket: "sample"  },
-  { excel: "Source",                        db: "source",                 bucket: "sample"  },
-  { excel: "Detail Disease",                db: "detail_disease",         bucket: "patient" },
-  { excel: "Organ Type",                    db: "organ_type",             bucket: "patient" },
-  { excel: "Comorbidity",                   db: "comorbidity",            bucket: "patient" },
-  { excel: "Family history",                db: "family_history",         bucket: "patient" },
-  { excel: "Metastasis",                    db: "metastasis",             bucket: "patient" },
-  { excel: "Patient status",                db: "patient_status",         bucket: "patient" },
-  { excel: "Sample Collection Date",        db: "sample_collection_date", bucket: "sample"  },
-  { excel: "DNA availability",              db: "dna_availability",       bucket: "sample"  },
-  { excel: "Sequencing",                    db: "sequencing",             bucket: "sample"  },
-  { excel: "DIN",                           db: "din",                    bucket: "sample"  },
-  { excel: "Research/Report",               db: "research_report",        bucket: "sample"  },
-  { excel: "Sequencing partner (E)",        db: "sequencing_partner",     bucket: "sample"  },
-  { excel: "Data received (E)",             db: "data_received",          bucket: "sample"  },
-  { excel: "TMR-EGbp",                      db: "tmr_e",                  bucket: "sample"  },
-  { excel: "Old Gbp",                       db: "old_gbp",                bucket: "sample"  },
-  { excel: "Gbp",                           db: "gbp",                    bucket: "sample"  },
-  { excel: "Data analysed-E (Som)",         db: "data_analysed_som",      bucket: "sample"  },
-  { excel: "Data analysed-E (Germ)",        db: "data_analysed_germ",     bucket: "sample"  },
-  { excel: "Sample labeling",               db: "sample_labeling",        bucket: "sample"  },
-  { excel: "Analysis",                      db: "analysis",               bucket: "sample"  },
-  { excel: "Report (made/release)",         db: "report_status",          bucket: "sample"  },
-  { excel: "Report Release Date",           db: "report_release_date",    bucket: "sample"  },
-  { excel: "Comments (report sample ID)",   db: "comments",               bucket: "sample"  },
-  { excel: "Consultation",                  db: "consultation",           bucket: "patient" },
+  { excel: "New Case label",                db: "new_case_label",         bucket: "record"  },
+  { excel: "Additional",                    db: "additional",             bucket: "record"  },
+  { excel: "Source",                        db: "source",                 bucket: "record"  },
+  { excel: "Detail Disease",                db: "detail_disease",         bucket: "record"  },
+  { excel: "Organ Type",                    db: "organ_type",             bucket: "record"  },
+  { excel: "Comorbidity",                   db: "comorbidity",            bucket: "record"  },
+  { excel: "Family history",                db: "family_history",         bucket: "record"  },
+  { excel: "Metastasis",                    db: "metastasis",             bucket: "record"  },
+  { excel: "Patient status",                db: "patient_status",         bucket: "record"  },
+  { excel: "Sample Collection Date",        db: "sample_collection_date", bucket: "record"  },
+  { excel: "DNA availability",              db: "dna_availability",       bucket: "record"  },
+  { excel: "Sequencing",                    db: "sequencing",             bucket: "record"  },
+  { excel: "DIN",                           db: "din",                    bucket: "record"  },
+  { excel: "Research/Report",               db: "research_report",        bucket: "record"  },
+  { excel: "Sequencing partner (E)",        db: "sequencing_partner",     bucket: "record"  },
+  { excel: "Data received (E)",             db: "data_received",          bucket: "record"  },
+  { excel: "TMR-EGbp",                      db: "tmr_e",                  bucket: "record"  },
+  { excel: "Old Gbp",                       db: "old_gbp",                bucket: "record"  },
+  { excel: "Gbp",                           db: "gbp",                    bucket: "record"  },
+  { excel: "Data analysed-E (Som)",         db: "data_analysed_som",      bucket: "record"  },
+  { excel: "Data analysed-E (Germ)",        db: "data_analysed_germ",     bucket: "record"  },
+  { excel: "Sample labeling",               db: "sample_labeling",        bucket: "record"  },
+  { excel: "Analysis",                      db: "analysis",               bucket: "record"  },
+  { excel: "Report (made/release)",         db: "report_status",          bucket: "record"  },
+  { excel: "Report Release Date",           db: "report_release_date",    bucket: "record"  },
+  { excel: "Comments (report sample ID)",   db: "comments",               bucket: "record"  },
+  { excel: "Consultation",                  db: "consultation",           bucket: "record"  },
 ];
 
 // Fast lookup: normalised Excel header → COLUMN_DEF
@@ -56,7 +56,9 @@ function downloadTemplate() {
   XLSX.writeFile(wb, "sample_template.xlsx");
 }
 
-// ── Parse Excel → rows with { patientPayload, samplePayload } ─────────────────
+// ── Parse Excel → rows with { patientPayload, recordPayload } ─────────────────
+// patientPayload : { patient_id, name, gender }
+// recordPayload  : { sid, age, aob_id, detail_disease, … all record fields }
 function parseExcel(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -67,27 +69,27 @@ function parseExcel(file) {
         const raw = XLSX.utils.sheet_to_json(ws, { defval: "", header: 1 });
         if (!raw.length) { resolve([]); return; }
 
-        // Map each column index → COLUMN_DEF (or null if unrecognised)
         const headerRow = raw[0];
         const colDefs   = headerRow.map(h => HEADER_LOOKUP[String(h).trim().toLowerCase()] ?? null);
 
         const rows = raw.slice(1).map(row => {
-          const patientPayload = {};
-          const samplePayload  = {};
+          const patientPayload = {};  // patient_id, name, gender only
+          const recordPayload  = {};  // sid + every sample_record field
+
           colDefs.forEach((def, idx) => {
             if (!def) return;
             const val = row[idx] ?? "";
             if (String(val).trim() === "") return;
             if (def.bucket === "patient") patientPayload[def.db] = val;
-            else                          samplePayload[def.db]  = val;
+            else                          recordPayload[def.db]  = val;
           });
-          return { patientPayload, samplePayload };
+          return { patientPayload, recordPayload };
         });
 
         // Drop fully empty rows
         const nonEmpty = rows.filter(r =>
           Object.keys(r.patientPayload).length > 0 ||
-          Object.keys(r.samplePayload).length  > 0
+          Object.keys(r.recordPayload).length  > 0
         );
         resolve(nonEmpty);
       } catch (err) {
@@ -149,7 +151,7 @@ export default function BulkUploadModal({ onClose, onDone }) {
       if (!("patient_id" in first.patientPayload)) {
         setParseError('Missing required column: "Patient ID". Please use the template.'); return;
       }
-      if (!("sid" in first.samplePayload)) {
+      if (!("sid" in first.recordPayload)) {
         setParseError('Missing required column: "Sample ID". Please use the template.'); return;
       }
 
@@ -157,7 +159,7 @@ export default function BulkUploadModal({ onClose, onDone }) {
       const rowErrors = parsed.map((r, i) => {
         const missing = [];
         if (!String(r.patientPayload.patient_id ?? "").trim()) missing.push("Patient ID");
-        if (!String(r.samplePayload.sid         ?? "").trim()) missing.push("Sample ID");
+        if (!String(r.recordPayload.sid         ?? "").trim()) missing.push("Sample ID");
         return missing.length ? `Row ${i + 1}: missing ${missing.join(", ")}` : "";
       });
       const invalid = rowErrors.filter(Boolean);
@@ -195,57 +197,66 @@ export default function BulkUploadModal({ onClose, onDone }) {
       statuses[i] = "uploading";
       setRowStatus([...statuses]);
 
-      const { patientPayload, samplePayload } = rows[i];
-
-      const missing = [];
-      if (!String(patientPayload.patient_id ?? "").trim()) missing.push("Patient ID");
-      if (!String(samplePayload.sid         ?? "").trim()) missing.push("Sample ID");
-      if (missing.length) {
-        statuses[i] = "error";
-        errors[i]   = `Missing required field(s): ${missing.join(", ")}`;
-        errorCount++;
-        setRowStatus([...statuses]);
-        setRowError([...errors]);
-        continue;
-      }
+      const { patientPayload, recordPayload } = rows[i];
 
       try {
-        // 1. Find or create patient
-        let patientDbId   = null;
+        // ── 1. Find or create patient ────────────────────────────────────────
+        let patientDbId    = null;
         let patientCreated = false;
 
-        const checkRes    = await fetch(`http://localhost:8000/patients`);
-        const allPatients = await checkRes.json();
-        const existing    = allPatients.find(p => p.patient_id === String(patientPayload.patient_id));
+        const searchRes = await fetch(
+          `http://localhost:8000/patients?patient_id=${encodeURIComponent(patientPayload.patient_id)}`
+        );
+        const searchData = await searchRes.json();
+
+        // Support both array and { results: [] } shaped responses
+        const existing = Array.isArray(searchData)
+          ? searchData.find(p => p.patient_id === String(patientPayload.patient_id))
+          : searchData.results?.find(p => p.patient_id === String(patientPayload.patient_id));
 
         if (existing) {
           patientDbId = existing.id;
         } else {
           if (!patientPayload.name) patientPayload.name = String(patientPayload.patient_id);
+
           const createRes = await fetch("http://localhost:8000/patients/", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(patientPayload),
+            body: JSON.stringify(patientPayload),   // { patient_id, name, gender }
           });
+
           if (!createRes.ok) {
             const err = await createRes.json();
             throw new Error(err.detail || "Failed to create patient");
           }
-          const refreshRes = await fetch(`http://localhost:8000/patients`);
-          const refreshed  = await refreshRes.json();
-          const newP       = refreshed.find(p => p.patient_id === String(patientPayload.patient_id));
-          patientDbId      = newP?.id;
+
+          // Use the POST response directly — no extra re-fetch needed
+          const newPatient = await createRes.json();
+          patientDbId      = newPatient.id;
           patientCreated   = true;
         }
 
         if (!patientDbId) throw new Error("Could not resolve patient ID after creation");
 
-        // 2. Add sample
-        const sampleRes = await fetch(`http://localhost:8000/patients/${patientDbId}/samples`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(samplePayload),
-        });
+        // ── 2. Add sample + record in one flat payload ───────────────────────
+        // Backend `add_sample_to_patient` accepts PatientWithSampleCreate:
+        //   → inserts sid into `samples`
+        //   → inserts all record fields into `sample_records`
+        const merged = { ...patientPayload, ...recordPayload };
+console.log(`Row ${i + 1} merged payload:`, merged);  // ← ADD
+
+const sampleRes = await fetch(`http://localhost:8000/patients/${patientDbId}/samples`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(merged),
+});
+
+if (!sampleRes.ok) {
+  const errBody = await sampleRes.json();
+  console.error(`Row ${i + 1} 422 detail:`, errBody);  // ← ADD
+  throw new Error(errBody.detail || JSON.stringify(errBody));
+}
+
         if (!sampleRes.ok) {
           const err = await sampleRes.json();
           throw new Error(err.detail || "Failed to add sample");
@@ -387,7 +398,7 @@ export default function BulkUploadModal({ onClose, onDone }) {
                   </button>
                 </div>
 
-                {/* Column reference — patient | sample */}
+                {/* Column reference — patient | record */}
                 <div style={{ marginTop: 20 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>
                     Column Reference
@@ -406,9 +417,9 @@ export default function BulkUploadModal({ onClose, onDone }) {
                     </div>
                     <div style={{ flex: 1, background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "12px 14px" }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: "#7c3aed", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
-                        Sample fields
+                        Sample &amp; Record fields
                       </div>
-                      {COLUMN_DEFS.filter(d => d.bucket === "sample").map(d => (
+                      {COLUMN_DEFS.filter(d => d.bucket === "record").map(d => (
                         <div key={d.db} style={{ fontSize: 12, padding: "3px 0", display: "flex", alignItems: "center", gap: 6 }}>
                           {d.db === "sid" && <span style={{ color: "#dc2626", fontWeight: 700, fontSize: 10 }}>*</span>}
                           <span style={{ color: "#334155", fontFamily: "'DM Mono', monospace" }}>{d.excel}</span>
@@ -469,7 +480,7 @@ export default function BulkUploadModal({ onClose, onDone }) {
                     <tbody>
                       {rows.map((row, i) => {
                         const p = row.patientPayload;
-                        const s = row.samplePayload;
+                        const r = row.recordPayload;   // ← was samplePayload
                         return (
                           <tr key={i} className="row-hover" style={{
                             borderBottom: i < rows.length - 1 ? "1px solid #f1f5f9" : "none",
@@ -483,13 +494,13 @@ export default function BulkUploadModal({ onClose, onDone }) {
                             </td>
                             <td style={{ padding: "11px 14px", fontSize: 13, color: "#0f172a" }}>{p.name || "—"}</td>
                             <td style={{ padding: "11px 14px", fontSize: 12, fontFamily: "'DM Mono', monospace" }}>
-                              {s.sid
-                                ? <span style={{ color: "#64748b" }}>{s.sid}</span>
+                              {r.sid
+                                ? <span style={{ color: "#64748b" }}>{r.sid}</span>
                                 : <span style={{ color: "#dc2626", fontWeight: 700 }}>⚠ missing</span>}
                             </td>
-                            <td style={{ padding: "11px 14px", fontSize: 12, color: "#7c3aed", fontFamily: "'DM Mono', monospace" }}>{s.new_case_label || "—"}</td>
-                            <td style={{ padding: "11px 14px", fontSize: 12, color: "#64748b" }}>{s.sequencing || "—"}</td>
-                            <td style={{ padding: "11px 14px", fontSize: 12, color: "#64748b" }}>{s.data_received || "—"}</td>
+                            <td style={{ padding: "11px 14px", fontSize: 12, color: "#7c3aed", fontFamily: "'DM Mono', monospace" }}>{r.new_case_label || "—"}</td>
+                            <td style={{ padding: "11px 14px", fontSize: 12, color: "#64748b" }}>{r.sequencing || "—"}</td>
+                            <td style={{ padding: "11px 14px", fontSize: 12, color: "#64748b" }}>{r.data_received || "—"}</td>
                             <td style={{ padding: "11px 14px" }}>
                               {step === "uploading" && rowStatus[i] === "uploading" ? (
                                 <div style={{

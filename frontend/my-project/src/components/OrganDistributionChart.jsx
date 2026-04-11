@@ -75,7 +75,7 @@ export default function OrganDistributionChart({
 
         {/* Scrollable legend — all real names */}
         <div style={{
-          display: "flex", flexDirection: "column", gap: 10,
+          display: "flex", flexDirection: "column", gap: 10, overflowX: "hidden",
           maxHeight: 220, overflowY: "auto",
           paddingRight: 4, flex: 1,
         }}>
@@ -86,7 +86,7 @@ export default function OrganDistributionChart({
                 background: item.color, flexShrink: 0,
               }} />
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#374151" , wordBreak:"break-word" }}>
                   {item.name}
                 </div>
                 <div style={{ fontSize: 11, color: "#9ca3af" }}>

@@ -1,10 +1,12 @@
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import { useNavigate } from "react-router-dom";
 
 function CustomTooltip({ active, payload }) {
   if (active && payload?.length) {
     return (
       <div style={{ background: "#1e293b", color: "#fff", borderRadius: 8, padding: "8px 14px", fontSize: 13 }}>
         <strong>{payload[0].name}</strong>: {payload[0].value}
+        <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>Click to view patients</div>
       </div>
     );
   }
@@ -24,7 +26,16 @@ export default function CaseDistributionChart({
   data = DEFAULT_DATA,
   title = "Case Category Distribution",
 }) {
+  const navigate = useNavigate();
   const total = data.reduce((sum, d) => sum + d.value, 0);
+
+  function handleLabelClick(name) {
+    navigate(`/patients?case_label=${encodeURIComponent(name)}`);
+  }
+
+  function handleSliceClick(entry) {
+    if (entry?.name) handleLabelClick(entry.name);
+  }
 
   return (
     <div style={{
@@ -41,13 +52,14 @@ export default function CaseDistributionChart({
         <div style={{ fontWeight: 700, fontSize: 16, color: "#111827" }}>{title}</div>
         <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 3 }}>
           Breakdown of {total.toLocaleString()} total classified cases
+          <span style={{ marginLeft: 6, color: "#3b82f6" }}>· Click a label to filter patients</span>
         </div>
       </div>
 
       {/* Donut + right-side scrollable legend */}
       <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
-        
-        {/* Donut */}
+
+        {/* Donut — slices are clickable */}
         <div style={{ width: 220, height: 220, flexShrink: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
@@ -57,6 +69,8 @@ export default function CaseDistributionChart({
                 innerRadius={65} outerRadius={100}
                 paddingAngle={2}
                 dataKey="value"
+                onClick={(entry) => handleSliceClick(entry)}
+                style={{ cursor: "pointer" }}
               >
                 {data.map((entry, i) => (
                   <Cell key={i} fill={entry.color} />
@@ -67,28 +81,49 @@ export default function CaseDistributionChart({
           </ResponsiveContainer>
         </div>
 
-        {/* Scrollable legend on the right */}
+        {/* Scrollable legend — each item clickable */}
         <div style={{
           flex: 1,
           maxHeight: 260,
           overflowY: "auto",
           display: "flex",
           flexDirection: "column",
-          gap: 10,
+          gap: 6,
           paddingRight: 4,
         }}>
           {data.map((item) => (
-            <div key={item.name} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div
+              key={item.name}
+              onClick={() => handleLabelClick(item.name)}
+              style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "6px 10px", borderRadius: 8,
+                cursor: "pointer", transition: "background 0.15s",
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = "#f0f9ff";
+                e.currentTarget.style.outline = `1.5px solid ${item.color}`;
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.outline = "none";
+              }}
+            >
               <div style={{
                 width: 10, height: 10, borderRadius: "50%",
                 background: item.color, flexShrink: 0,
               }} />
-              <div>
+              <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>{item.name}</div>
                 <div style={{ fontSize: 11, color: "#9ca3af" }}>
                   {item.value} · {item.percent}
                 </div>
               </div>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                stroke="#94a3b8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12"/>
+                <polyline points="12 5 19 12 12 19"/>
+              </svg>
             </div>
           ))}
         </div>

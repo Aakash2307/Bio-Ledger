@@ -23,11 +23,11 @@ const STATUS_COLORS = {
 };
 
 const DEFAULT_ACTIVITIES = [
-  { text: "Sample GEN-4821 sequenced",         time: "12 min ago", color: "#4CAF82" },
-  { text: "Patient P-1092 flagged for review",  time: "34 min ago", color: "#E8A838" },
-  { text: "Batch B-77 quality check passed",    time: "1 hr ago",   color: "#4CAF82" },
+  { text: "Sample 5A0123 report Generated",         time: "12 min ago", color: "#4CAF82" },
+  { text: "Patient 1A023 flagged for review of case label",  time: "34 min ago", color: "#E8A838" },
+  { text: "patient 7A0123 quality check passed",    time: "1 hr ago",   color: "#4CAF82" },
   { text: "New case registered — Diabetes panel", time: "2 hr ago", color: "#4A90D9" },
-  { text: "Report exported for Dr. Mendes",     time: "3 hr ago",   color: "#4CAF82" },
+  { text: "Report 4A0222 download by analyst",     time: "3 hr ago",   color: "#4CAF82" },
 ];
 
 export default function RecentActivity({ activities = DEFAULT_ACTIVITIES }) {

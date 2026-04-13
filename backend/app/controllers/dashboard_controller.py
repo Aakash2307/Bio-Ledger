@@ -44,7 +44,12 @@ def get_dashboard_summary(period: str = "all"):
     total_patients = cursor.fetchone()["count"]
 
     # ── Total samples (SID level) ─────────────────────────────────────────────
-    cursor.execute("SELECT COUNT(*) as count FROM samples")
+    cursor.execute(f"""
+    SELECT COUNT(DISTINCT s.id) as count
+    FROM samples s
+    JOIN sample_records sr ON sr.sample_ref = s.id
+    WHERE 1=1 {record_date_filter}
+""")
     total_samples = cursor.fetchone()["count"]
 
     # ── Sequenced records ─────────────────────────────────────────────────────

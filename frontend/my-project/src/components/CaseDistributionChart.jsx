@@ -25,12 +25,15 @@ const DEFAULT_DATA = [
 export default function CaseDistributionChart({
   data = DEFAULT_DATA,
   title = "Case Category Distribution",
+  period = "all",  // ← new prop to pass current period for filtering
 }) {
   const navigate = useNavigate();
   const total = data.reduce((sum, d) => sum + d.value, 0);
 
   function handleLabelClick(name) {
-    navigate(`/patients?case_label=${encodeURIComponent(name)}`);
+    const params = new URLSearchParams({ case_label: name });
+    if (period !== "all") params.set("period", period);
+    navigate(`/patients?${params.toString()}`);
   }
 
   function handleSliceClick(entry) {

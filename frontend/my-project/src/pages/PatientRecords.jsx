@@ -5,32 +5,69 @@ import { useNavigate, useLocation } from "react-router-dom";
 import BulkUploadModal from "./BulkUploadModel";
 import { deletePatient as deletePatientApi, deleteSample as deleteSampleApi } from "../api";
 
-const statusConfig = {
-  New:          { bg: "#e8f8f0", color: "#2d9e6b", border: "#b3e8cf" },
-  "In Progress":{ bg: "#fff8e8", color: "#c8820a", border: "#f5d98a" },
-  Completed:    { bg: "#eaf2fb", color: "#2e72b8", border: "#b3d1f0" },
-  Active:       { bg: "#e8f8f0", color: "#2d9e6b", border: "#b3e8cf" },
-  Inactive:     { bg: "#f1f5f9", color: "#64748b", border: "#e2e8f0" },
-  Done:         { bg: "#eaf2fb", color: "#2e72b8", border: "#b3d1f0" },
-  Exhausted:    { bg: "#fef2f2", color: "#dc2626", border: "#fecaca" },
-};
+// ─── Column Definitions ───────────────────────────────────────────────────────
+const COLUMN_DEFS = [
+  { excel: "AOB ID",                       db: "aob_id",                 bucket: "record"  },
+  { excel: "Sample ID",                    db: "sid",                    bucket: "sample"  },
+  { excel: "Name",                         db: "name",                   bucket: "patient" },
+  { excel: "Age",                          db: "age",                    bucket: "record"  },
+  { excel: "Gender",                       db: "gender",                 bucket: "patient" },
+  { excel: "Patient ID",                   db: "patient_id",             bucket: "patient" },
+  { excel: "New Case label",               db: "new_case_label",         bucket: "record"  },
+  { excel: "Additional",                   db: "additional",             bucket: "record"  },
+  { excel: "Source",                       db: "source",                 bucket: "record"  },
+  { excel: "Detail Disease",               db: "detail_disease",         bucket: "record"  },
+  { excel: "Organ Type",                   db: "organ_type",             bucket: "record"  },
+  { excel: "Comorbidity",                  db: "comorbidity",            bucket: "record"  },
+  { excel: "Family history",               db: "family_history",         bucket: "record"  },
+  { excel: "Metastasis",                   db: "metastasis",             bucket: "record"  },
+  { excel: "Patient status",               db: "patient_status",         bucket: "record"  },
+  { excel: "Sample Collection Date",       db: "sample_collection_date", bucket: "record"  },
+  { excel: "DNA availability",             db: "dna_availability",       bucket: "record"  },
+  { excel: "Sequencing",                   db: "sequencing",             bucket: "record"  },
+  { excel: "DIN",                          db: "din",                    bucket: "record"  },
+  { excel: "Research/Report",              db: "research_report",        bucket: "record"  },
+  { excel: "Sequencing partner (E)",       db: "sequencing_partner",     bucket: "record"  },
+  { excel: "Data received (E)",            db: "data_received",          bucket: "record"  },
+  { excel: "TMR-EGbp",                     db: "tmr_e",                  bucket: "record"  },
+  { excel: "Old Gbp",                      db: "old_gbp",                bucket: "record"  },
+  { excel: "Gbp",                          db: "gbp",                    bucket: "record"  },
+  { excel: "Data analysed-E (Som)",        db: "data_analysed_som",      bucket: "record"  },
+  { excel: "Data analysed-E (Germ)",       db: "data_analysed_germ",     bucket: "record"  },
+  { excel: "Sample labeling",              db: "sample_labeling",        bucket: "record"  },
+  { excel: "Analysis",                     db: "analysis",               bucket: "record"  },
+  { excel: "Report (made/release)",        db: "report_status",          bucket: "record"  },
+  { excel: "Report Release Date",          db: "report_release_date",    bucket: "record"  },
+  { excel: "Comments (report sample ID)",  db: "comments",               bucket: "record"  },
+  { excel: "Consultation",                 db: "consultation",           bucket: "record"  },
+];
 
+// ─── SheetJS loader ───────────────────────────────────────────────────────────
+function ensureSheetJS() {
+  return new Promise((resolve, reject) => {
+    if (window.XLSX) { resolve(window.XLSX); return; }
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    s.onload  = () => resolve(window.XLSX);
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+// ─── Skeleton Row ─────────────────────────────────────────────────────────────
 function SkeletonRow() {
   return (
     <tr>
       {[30, 140, 180, 80, 120, 30].map((w, i) => (
         <td key={i} style={{ padding: "18px 16px" }}>
-          <div style={{
-            height: 13, width: w, borderRadius: 6,
-            background: "linear-gradient(90deg,#f0f4f8 25%,#e2e8f0 50%,#f0f4f8 75%)",
-            backgroundSize: "400% 100%", animation: "shimmer 1.4s ease infinite",
-          }} />
+          <div style={{ height: 13, width: w, borderRadius: 6, background: "linear-gradient(90deg,#f0f4f8 25%,#e2e8f0 50%,#f0f4f8 75%)", backgroundSize: "400% 100%", animation: "shimmer 1.4s ease infinite" }} />
         </td>
       ))}
     </tr>
   );
 }
 
+// ─── Detail Row ───────────────────────────────────────────────────────────────
 function DetailRow({ label, value }) {
   if (value === undefined || value === null || value === "") return null;
   return (
@@ -41,20 +78,20 @@ function DetailRow({ label, value }) {
   );
 }
 
+// ─── Chevron ──────────────────────────────────────────────────────────────────
 function Chevron({ open }) {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
       style={{ transition: "transform 0.2s ease", transform: open ? "rotate(90deg)" : "rotate(0deg)", color: open ? "#2563eb" : "#94a3b8" }}>
       <polyline points="9 18 15 12 9 6" />
     </svg>
   );
 }
 
+// ─── Trash Icon ───────────────────────────────────────────────────────────────
 function TrashIcon({ style }) {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
       <polyline points="3 6 5 6 21 6" />
       <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
       <path d="M10 11v6" /><path d="M14 11v6" />
@@ -63,32 +100,22 @@ function TrashIcon({ style }) {
   );
 }
 
-// ─── Active Filter Badge ──────────────────────────────────────────────────────
+// ─── Filter Badge ─────────────────────────────────────────────────────────────
 function FilterBadge({ label, value, onClear }) {
-  const filterLabels = { organ_type: "Organ Type", case_label: "Case Label" };
+  const filterLabels = { organ_type: "Organ Type", case_label: "Case Label", period: "Period" };
   return (
-    <div style={{
-      display: "inline-flex", alignItems: "center", gap: 8,
-      padding: "6px 14px", borderRadius: 20,
-      background: "#eff6ff", border: "1.5px solid #bfdbfe",
-      fontSize: 13, fontWeight: 600, color: "#2563eb", marginBottom: 16,
-    }}>
+    <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", borderRadius: 20, background: "#eff6ff", border: "1.5px solid #bfdbfe", fontSize: 13, fontWeight: 600, color: "#2563eb", marginBottom: 10, marginRight: 8 }}>
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
         <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
       </svg>
       <span style={{ fontSize: 11, color: "#64748b", fontWeight: 500 }}>{filterLabels[label] || label}:</span>
       <span>{value}</span>
-      <button onClick={onClear} style={{
-        background: "#bfdbfe", border: "none", borderRadius: "50%",
-        width: 18, height: 18, cursor: "pointer", fontSize: 12, color: "#2563eb",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontWeight: 700, lineHeight: 1, padding: 0,
-      }}>×</button>
+      <button onClick={onClear} style={{ background: "#bfdbfe", border: "none", borderRadius: "50%", width: 18, height: 18, cursor: "pointer", fontSize: 12, color: "#2563eb", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, lineHeight: 1, padding: 0 }}>×</button>
     </div>
   );
 }
 
-// ─── Expanded samples panel ───────────────────────────────────────────────────
+// ─── Expanded Samples ─────────────────────────────────────────────────────────
 function ExpandedSamples({ patientId, selectedSample, onOpenSample, navigate, onDeleteSample }) {
   const [samples, setSamples] = React.useState(null);
   const [deletingRow, setDeletingRow] = React.useState(null);
@@ -121,17 +148,8 @@ function ExpandedSamples({ patientId, selectedSample, onOpenSample, navigate, on
     finally { setDeletingRow(null); }
   }
 
-  if (!samples) return (
-    <div style={{ background: "#f8faff", borderTop: "1px solid #dbeafe", padding: "14px 16px" }}>
-      <span style={{ fontSize: 12, color: "#94a3b8" }}>Loading samples…</span>
-    </div>
-  );
-
-  if (samples.length === 0) return (
-    <div style={{ background: "#f8faff", borderTop: "1px solid #dbeafe", padding: "14px 16px" }}>
-      <span style={{ fontSize: 12, color: "#94a3b8" }}>No sample records found.</span>
-    </div>
-  );
+  if (!samples) return <div style={{ background: "#f8faff", borderTop: "1px solid #dbeafe", padding: "14px 16px" }}><span style={{ fontSize: 12, color: "#94a3b8" }}>Loading samples…</span></div>;
+  if (samples.length === 0) return <div style={{ background: "#f8faff", borderTop: "1px solid #dbeafe", padding: "14px 16px" }}><span style={{ fontSize: 12, color: "#94a3b8" }}>No sample records found.</span></div>;
 
   const COLS = "44px 1fr 1fr 1fr 1fr 1fr 44px";
 
@@ -154,8 +172,7 @@ function ExpandedSamples({ patientId, selectedSample, onOpenSample, navigate, on
               if (e.detail === 2) { navigate(`/view-patient/${patientId}/${samp.sampleId}`); return; }
               onOpenSample(patientId, samp.sampleId);
             }}
-            style={{ display: "grid", gridTemplateColumns: COLS, padding: "11px 0", borderBottom: si < samples.length - 1 ? "1px solid #e8edf3" : "none", background: isActiveSample ? "#dbeafe" : "transparent", transition: "background 0.1s", opacity: isDeleting ? 0.5 : 1 }}
-          >
+            style={{ display: "grid", gridTemplateColumns: COLS, padding: "11px 0", borderBottom: si < samples.length - 1 ? "1px solid #e8edf3" : "none", background: isActiveSample ? "#dbeafe" : "transparent", transition: "background 0.1s", opacity: isDeleting ? 0.5 : 1 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: isActiveSample ? "#2563eb" : "#93c5fd" }} />
             </div>
@@ -192,21 +209,20 @@ export default function PatientRecords() {
   const [deletingId, setDeletingId]         = useState(null);
   const [filteredByDashboard, setFilteredByDashboard] = useState([]);
   const [filterLoading, setFilterLoading]   = useState(false);
+  const [exporting, setExporting]           = useState(false);
   const navigate                            = useNavigate();
   const location                            = useLocation();
   const clickTimer                          = useRef(null);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
 
-  // ── Read URL filter params ──
-  const urlParams   = new URLSearchParams(location.search);
-  const filterOrgan = urlParams.get("organ_type") || "";
-  const filterCase  = urlParams.get("case_label")  || "";
-  const activeFilter = filterOrgan
-    ? { key: "organ_type", value: filterOrgan }
-    : filterCase
-    ? { key: "case_label", value: filterCase }
-    : null;
+  // ── Read ALL URL filter params ──────────────────────────────────────────────
+  const urlParams    = new URLSearchParams(location.search);
+  const filterOrgan  = urlParams.get("organ_type") || "";
+  const filterCase   = urlParams.get("case_label")  || "";
+  const filterPeriod = urlParams.get("period")       || "";
+  const hasAnyFilter = !!(filterOrgan || filterCase || filterPeriod);
 
+  // ── Load patients on mount ──────────────────────────────────────────────────
   useEffect(() => { loadPatients(); }, []);
 
   async function loadPatients() {
@@ -216,9 +232,34 @@ export default function PatientRecords() {
     finally { setLoadingList(false); }
   }
 
-  // ── Apply dashboard filter by fetching patient details ──
+  // ── Apply ALL active filters — runs when filters OR patients change ─────────
+  // Key fix: depends on `patients` array + `loadingList` to avoid race condition
   useEffect(() => {
-    if (!activeFilter || patients.length === 0) { setFilteredByDashboard([]); return; }
+
+
+     console.log("🔍 Filter effect:", {
+      filterOrgan, filterCase, filterPeriod,
+      loadingList,
+      patientsCount: patients.length,
+      hasAnyFilter
+    });
+    // Wait until patients are loaded
+    if (loadingList) return;
+
+    // If no filter active, clear and show all
+    if (!hasAnyFilter) {
+      setFilteredByDashboard([]);
+      return;
+    }
+
+    // If filters active but no patients yet, just wait
+    if (patients.length === 0) {
+      setFilteredByDashboard([]);
+      return;
+    }
+
+    let cancelled = false; // cleanup flag to avoid stale state
+
     async function applyFilter() {
       setFilterLoading(true);
       try {
@@ -226,26 +267,104 @@ export default function PatientRecords() {
           patients.map(async (p) => {
             try {
               const detail = await getPatientDetails(p.id);
-              const matches = detail.samples?.some(s =>
-                s.records?.some(r => {
-                  if (activeFilter.key === "organ_type")
-                    return String(r.organ_type ?? "").toLowerCase() === activeFilter.value.toLowerCase();
-                  if (activeFilter.key === "case_label")
-                    return String(r.new_case_label ?? "").toLowerCase() === activeFilter.value.toLowerCase();
-                  return false;
-                })
-              );
+              const matches = detail.samples?.some(s => {
+                // ── Period filter on sample created_at ──
+                if (filterPeriod && filterPeriod !== "all") {
+                  const createdAt = s.created_at || "";
+                  if (!createdAt.startsWith(filterPeriod)) return false;
+                }
+
+                // ── If only period filter, any sample passing period is enough ──
+                if (!filterOrgan && !filterCase) return true;
+
+                // ── Organ + Case filter on records ──
+                return s.records?.some(r => {
+                  let organMatch = true, caseMatch = true;
+                  if (filterOrgan) organMatch = String(r.organ_type ?? "").toLowerCase() === filterOrgan.toLowerCase();
+                  if (filterCase)  caseMatch  = String(r.new_case_label ?? "").toLowerCase() === filterCase.toLowerCase();
+                  return organMatch && caseMatch;
+                });
+              });
               return matches ? p : null;
             } catch { return null; }
           })
         );
-        setFilteredByDashboard(results.filter(Boolean));
-      } finally { setFilterLoading(false); }
+        if (!cancelled) setFilteredByDashboard(results.filter(Boolean));
+      } finally {
+        if (!cancelled) setFilterLoading(false);
+      }
     }
-    applyFilter();
-  }, [activeFilter?.key, activeFilter?.value, patients.length]);
 
-  function clearFilter() { navigate("/patients"); }
+    applyFilter();
+    return () => { cancelled = true; }; // cancel on unmount or re-run
+  }, [filterOrgan, filterCase, filterPeriod, patients, loadingList]);
+
+  // ── Remove individual filter from URL ───────────────────────────────────────
+  function removeFilter(key) {
+    const params = new URLSearchParams(location.search);
+    params.delete(key);
+    const qs = params.toString();
+    navigate(qs ? `/patients?${qs}` : "/patients");
+  }
+
+  function clearAllFilters() { navigate("/patients"); }
+
+  // ── Excel Export ──────────────────────────────────────────────────────────────
+  async function handleExportExcel() {
+    setExporting(true);
+    try {
+      const XLSX = await ensureSheetJS();
+      const BATCH = 10;
+      const allRows = [];
+
+      for (let i = 0; i < patients.length; i += BATCH) {
+        const batch = patients.slice(i, i + BATCH);
+        const details = await Promise.all(batch.map(p => getPatientDetails(p.id).catch(() => null)));
+
+        details.forEach((data) => {
+          if (!data) return;
+          const patient = data.patient;
+          const samples = data.samples || [];
+
+          if (samples.length === 0) {
+            const row = {};
+            COLUMN_DEFS.forEach(col => { row[col.excel] = col.bucket === "patient" ? (patient[col.db] ?? "") : ""; });
+            allRows.push(row);
+            return;
+          }
+
+          samples.forEach(sample => {
+            const records = sample.records?.length > 0 ? sample.records : [{}];
+            records.forEach(record => {
+              const row = {};
+              COLUMN_DEFS.forEach(col => {
+                if (col.bucket === "patient")     row[col.excel] = patient[col.db] ?? "";
+                else if (col.bucket === "sample") row[col.excel] = sample[col.db] ?? "";
+                else                              row[col.excel] = record[col.db] ?? "";
+              });
+              allRows.push(row);
+            });
+          });
+        });
+      }
+
+      const ws = XLSX.utils.json_to_sheet(allRows, { header: COLUMN_DEFS.map(c => c.excel) });
+      const range = XLSX.utils.decode_range(ws["!ref"]);
+      for (let C = range.s.c; C <= range.e.c; C++) {
+        const cellAddr = XLSX.utils.encode_cell({ r: 0, c: C });
+        if (!ws[cellAddr]) continue;
+        ws[cellAddr].s = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "2563EB" } }, alignment: { horizontal: "center", wrapText: true } };
+      }
+      ws["!cols"] = COLUMN_DEFS.map(col => ({ wch: Math.max(col.excel.length + 2, 14) }));
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Patient Records");
+      XLSX.writeFile(wb, `patient_records_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } catch (err) {
+      console.error("Export failed:", err);
+      alert("Export failed. Please try again.");
+    } finally { setExporting(false); }
+  }
 
   async function deletePatient(patientId, patientName, e) {
     e.stopPropagation();
@@ -295,8 +414,9 @@ export default function PatientRecords() {
     finally { setLoadingDetail(false); }
   }
 
+  // ── Final list ──────────────────────────────────────────────────────────────
+  const baseList = hasAnyFilter ? (filterLoading ? [] : filteredByDashboard) : patients;
   const q = search.toLowerCase().trim();
-  const baseList = activeFilter ? (filterLoading ? [] : filteredByDashboard) : patients;
   const getScore = (p) => {
     const name = (p.name ?? "").toLowerCase(), pid = (p.patient_id ?? "").toLowerCase();
     if (name === q || pid === q) return 0;
@@ -308,6 +428,18 @@ export default function PatientRecords() {
     .sort((a, b) => getScore(a) - getScore(b));
 
   const activePanelPatientId = selectedSample?.patient?.id;
+  const filterSummary = [
+    filterOrgan  && `Organ: ${filterOrgan}`,
+    filterCase   && `Case: ${filterCase}`,
+    filterPeriod && `Period: ${filterPeriod}`,
+  ].filter(Boolean).join(" · ");
+
+
+  
+
+
+
+  
 
   return (
     <>
@@ -331,6 +463,7 @@ export default function PatientRecords() {
         .delete-btn:hover svg { color: #dc2626 !important; }
         .delete-btn:active { transform: scale(0.93); }
         .delete-btn.deleting { opacity: 0.5; pointer-events: none; }
+        .export-btn:hover { border-color: #16a34a !important; background: #f0fdf4 !important; }
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
       `}</style>
 
@@ -349,7 +482,20 @@ export default function PatientRecords() {
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <button onClick={() => setShowBulkUpload(true)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 20px", borderRadius: 10, border: "1.5px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 14, fontWeight: 700, cursor: "pointer", transition: "all 0.15s", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}
+
+              {/* Export */}
+              <button className="export-btn" onClick={handleExportExcel}
+                disabled={exporting || loadingList || patients.length === 0}
+                title={patients.length === 0 ? "No patients to export" : "Export all patients to Excel"}
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 42, height: 42, borderRadius: 10, border: "1.5px solid #e2e8f0", background: "#fff", color: exporting ? "#94a3b8" : "#16a34a", cursor: (exporting || loadingList || patients.length === 0) ? "not-allowed" : "pointer", opacity: (loadingList || patients.length === 0) ? 0.45 : 1, transition: "all 0.15s", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", flexShrink: 0 }}>
+                {exporting
+                  ? <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: "spin 0.7s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                  : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>}
+              </button>
+
+              {/* Bulk Upload */}
+              <button onClick={() => setShowBulkUpload(true)}
+                style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 20px", borderRadius: 10, border: "1.5px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 14, fontWeight: 700, cursor: "pointer", transition: "all 0.15s", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = "#3b82f6"; e.currentTarget.style.color = "#2563eb"; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.color = "#334155"; }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -357,7 +503,10 @@ export default function PatientRecords() {
                 </svg>
                 Bulk Upload
               </button>
-              <button onClick={() => navigate("/add-patient")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 20px", borderRadius: 10, border: "none", background: "#2563eb", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 8px rgba(37,99,235,0.3)", transition: "all 0.15s" }}
+
+              {/* Add Patient */}
+              <button onClick={() => navigate("/add-patient")}
+                style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 20px", borderRadius: 10, border: "none", background: "#2563eb", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 8px rgba(37,99,235,0.3)", transition: "all 0.15s" }}
                 onMouseEnter={e => { e.currentTarget.style.background = "#1d4ed8"; e.currentTarget.style.transform = "translateY(-1px)"; }}
                 onMouseLeave={e => { e.currentTarget.style.background = "#2563eb"; e.currentTarget.style.transform = "none"; }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -373,12 +522,21 @@ export default function PatientRecords() {
         <div style={{ maxWidth: 1400, margin: "0 auto", padding: "28px 32px", display: "flex", gap: 24, alignItems: "flex-start" }}>
           <div style={{ flex: 1, minWidth: 0 }}>
 
-            {/* Active filter badge */}
-            {activeFilter && (
-              <FilterBadge label={activeFilter.key} value={activeFilter.value} onClear={clearFilter} />
+            {/* ── Active filter badges ── */}
+            {hasAnyFilter && (
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4, marginBottom: 8 }}>
+                {filterOrgan  && <FilterBadge label="organ_type" value={filterOrgan}  onClear={() => removeFilter("organ_type")} />}
+                {filterCase   && <FilterBadge label="case_label" value={filterCase}   onClear={() => removeFilter("case_label")} />}
+                {filterPeriod && <FilterBadge label="period"     value={filterPeriod} onClear={() => removeFilter("period")} />}
+                {[filterOrgan, filterCase, filterPeriod].filter(Boolean).length > 1 && (
+                  <button onClick={clearAllFilters} style={{ padding: "5px 12px", borderRadius: 20, border: "1.5px solid #fecaca", background: "#fef2f2", color: "#dc2626", fontSize: 12, fontWeight: 600, cursor: "pointer", marginBottom: 10 }}>
+                    Clear all ×
+                  </button>
+                )}
+              </div>
             )}
 
-            {/* Search */}
+            {/* ── Search ── */}
             <div style={{ position: "relative", maxWidth: 460, marginBottom: 24 }}>
               <svg style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", pointerEvents: "none" }}
                 width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -420,13 +578,11 @@ export default function PatientRecords() {
                           <div style={{ fontSize: 32, marginBottom: 10 }}>🔍</div>
                           <div style={{ fontSize: 15, fontWeight: 600, color: "#64748b" }}>No patients found</div>
                           <div style={{ fontSize: 13, color: "#94a3b8", marginTop: 4 }}>
-                            {activeFilter
-                              ? `No patients with ${activeFilter.key.replace("_", " ")} "${activeFilter.value}"`
-                              : search ? `No results for "${search}"` : "No patients yet — add one to get started"}
+                            {hasAnyFilter ? "No patients match the active filters" : search ? `No results for "${search}"` : "No patients yet — add one to get started"}
                           </div>
-                          {activeFilter && (
-                            <button onClick={clearFilter} style={{ marginTop: 12, padding: "8px 18px", borderRadius: 8, border: "1.5px solid #bfdbfe", background: "#eff6ff", color: "#2563eb", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                              Clear Filter
+                          {hasAnyFilter && (
+                            <button onClick={clearAllFilters} style={{ marginTop: 12, padding: "8px 18px", borderRadius: 8, border: "1.5px solid #bfdbfe", background: "#eff6ff", color: "#2563eb", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                              Clear All Filters
                             </button>
                           )}
                         </td>
@@ -449,9 +605,7 @@ export default function PatientRecords() {
                                   </div>
                                 ) : <div style={{ width: 26 }} />}
                               </td>
-                              <td style={{ padding: "17px 16px" }}>
-                                <span style={{ color: "#2563eb", fontSize: 13, fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>{p.patient_id || "—"}</span>
-                              </td>
+                              <td style={{ padding: "17px 16px" }}><span style={{ color: "#2563eb", fontSize: 13, fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>{p.patient_id || "—"}</span></td>
                               <td style={{ padding: "17px 16px" }}><span style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{p.name || "—"}</span></td>
                               <td style={{ padding: "17px 16px" }}><span style={{ fontSize: 14, color: "#334155" }}>{p.gender || "—"}</span></td>
                               <td style={{ padding: "17px 16px" }}>
@@ -489,9 +643,9 @@ export default function PatientRecords() {
               <div style={{ padding: "11px 20px", borderTop: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 12, color: "#94a3b8" }}>
                   {loadingList || filterLoading ? "Loading…"
-                    : `Showing ${filtered.length} of ${patients.length} patient${patients.length !== 1 ? "s" : ""}${activeFilter ? ` · filtered by ${activeFilter.value}` : ""}`}
+                    : `Showing ${filtered.length} of ${patients.length} patient${patients.length !== 1 ? "s" : ""}${filterSummary ? ` · ${filterSummary}` : ""}`}
                 </span>
-                {search && !loadingList && <span style={{ fontSize: 12, color: "#64748b" }}>Filtered by <strong>"{search}"</strong></span>}
+                {search && !loadingList && <span style={{ fontSize: 12, color: "#64748b" }}>Search: <strong>"{search}"</strong></span>}
               </div>
             </div>
           </div>

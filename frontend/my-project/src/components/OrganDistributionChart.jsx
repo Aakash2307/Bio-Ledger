@@ -29,14 +29,17 @@ function CustomTooltip({ active, payload }) {
 export default function OrganDistributionChart({
   data = DEFAULT_DATA,
   title = "Organ Type Distribution",
-  filterKey = "organ_type",  // "organ_type" for main, same for benign (dashboard passes context)
+  filterKey = "organ_type",
+  period = "all",  // "organ_type" for main, same for benign (dashboard passes context)
 }) {
   const navigate = useNavigate();
   const total = data.reduce((sum, d) => sum + d.value, 0);
   const chartData = [...data].sort((a, b) => b.value - a.value);
 
   function handleLabelClick(name) {
-    navigate(`/patients?${filterKey}=${encodeURIComponent(name)}`);
+    const params = new URLSearchParams({ [filterKey]: name });
+    if (period !== "all") params.set("period", period);
+    navigate(`/patients?${params.toString()}`);
   }
 
   function handleSliceClick(entry) {

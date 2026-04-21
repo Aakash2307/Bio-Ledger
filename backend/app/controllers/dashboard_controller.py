@@ -91,14 +91,53 @@ def get_dashboard_summary(period: str = "all"):
     """)
     benign_organ_counts = {row["organ_type"]: row["count"] for row in cursor.fetchall()}
 
+    # ── Organ × case_label breakdown (non-benign) ─────────────────────────────
+    cursor.execute(f"""
+        SELECT sr.organ_type, sr.new_case_label, COUNT(sr.id) as count
+        FROM sample_records sr
+        WHERE sr.organ_type IS NOT NULL AND sr.organ_type != ''
+        AND sr.new_case_label IS NOT NULL AND sr.new_case_label != ''
+        AND sr.new_case_label != 'Benign'
+        {record_date_filter}
+        GROUP BY sr.organ_type, sr.new_case_label
+    """)
+    organ_case_breakdown = {}
+    for row in cursor.fetchall():
+        organ = row["organ_type"]
+        label = row["new_case_label"]
+        count = row["count"]
+        if organ not in organ_case_breakdown:
+            organ_case_breakdown[organ] = {}
+        organ_case_breakdown[organ][label] = count
+
+    # ── Organ × case_label breakdown (benign only) ────────────────────────────
+    cursor.execute(f"""
+        SELECT sr.organ_type, sr.new_case_label, COUNT(sr.id) as count
+        FROM sample_records sr
+        WHERE sr.new_case_label = 'Benign'
+        AND sr.organ_type IS NOT NULL AND sr.organ_type != ''
+        {record_date_filter}
+        GROUP BY sr.organ_type, sr.new_case_label
+    """)
+    benign_organ_case_breakdown = {}
+    for row in cursor.fetchall():
+        organ = row["organ_type"]
+        label = row["new_case_label"]
+        count = row["count"]
+        if organ not in benign_organ_case_breakdown:
+            benign_organ_case_breakdown[organ] = {}
+        benign_organ_case_breakdown[organ][label] = count
+
     conn.close()
     return {
-        "total_patients": total_patients,
-        "total_samples": total_samples,
-        "sequenced_samples": sequenced_samples,
-        "case_counts": case_counts,
-        "organ_counts": organ_counts,
-        "benign_organ_counts": benign_organ_counts,
+        "total_patients":             total_patients,
+        "total_samples":              total_samples,
+        "sequenced_samples":          sequenced_samples,
+        "case_counts":                case_counts,
+        "organ_counts":               organ_counts,
+        "benign_organ_counts":        benign_organ_counts,
+        "organ_case_breakdown":       organ_case_breakdown,
+        "benign_organ_case_breakdown": benign_organ_case_breakdown,
     }
 
 

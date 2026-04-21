@@ -5,7 +5,12 @@ import StatCardsRow          from "../components/StatCardsRow";
 import CaseDistributionChart from "../components/CaseDistributionChart";
 import RecentActivity        from "../components/RecentActivity";
 import { getDashboardSummary } from "../api";
-import OrganDistributionChart from "../components/OrganDistributionChart";
+// import OrganDistributionChart from "../components/OrganDistributionChart";
+import OrganCaseBreakdownChart from "../components/OrganCaseBreakdownChart";
+
+
+// replace the two <OrganDistributionChart .../> with:
+
 import logo from "../assets/tzarnewlogo.png";
 
 const CHART_COLORS = [
@@ -188,7 +193,7 @@ export default function Dashboard() {
          data={caseData.length > 0 ? caseData : undefined} 
          period={period}
         />
-        <OrganDistributionChart
+        {/* <OrganDistributionChart
           data={organData.length > 0 ? organData : undefined}
           title="Organ Type Distribution"
           filterKey="organ_type"
@@ -199,8 +204,12 @@ export default function Dashboard() {
           title="Benign Organ Distribution"
           filterKey="organ_type"
           period={period}
-        />
-        <RecentActivity activities={DEFAULT_ACTIVITIES} />
+        /> */}
+
+        <OrganCaseBreakdownChart summary={summary} period={period} />
+
+        {/* <OrganDrilldownChart summary={summary} period={period} /> */}
+        {/* <RecentActivity activities={DEFAULT_ACTIVITIES} /> */}
       </div>
 
     </div>

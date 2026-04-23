@@ -1,0 +1,32 @@
+sqlite3 patients.db "
+UPDATE sample_records SET organ_type = 'Lung' WHERE trim(organ_type) IN ('Lung cancer', 'Lung  cancer');
+UPDATE sample_records SET organ_type = 'Bladder' WHERE organ_type IN ('Bladder cancer', 'Bladder Cancer');
+UPDATE sample_records SET organ_type = 'Cervical' WHERE organ_type IN ('Cervical cancer', 'Cervical Cancer');
+UPDATE sample_records SET organ_type = 'Breast' WHERE organ_type = 'Breast cancer';
+UPDATE sample_records SET organ_type = 'Prostate' WHERE organ_type IN ('Prostate cancer', 'Prostate Cancer');
+UPDATE sample_records SET organ_type = 'Kidney' WHERE organ_type = 'Kidney cancer';
+UPDATE sample_records SET organ_type = 'Liver' WHERE organ_type = 'Liver cancer';
+UPDATE sample_records SET organ_type = 'Pancreas' WHERE organ_type = 'Pancreas cancer';
+UPDATE sample_records SET organ_type = 'Endometrium' WHERE organ_type = 'Endometrial cancer';
+UPDATE sample_records SET organ_type = 'Ovary' WHERE organ_type = 'Ovarian cancer';
+UPDATE sample_records SET organ_type = 'Head & Neck' WHERE organ_type IN ('Head & Neck cancer', 'Head', 'Neck');
+UPDATE sample_records SET organ_type = 'Eye' WHERE organ_type = 'Eye cancer';
+UPDATE sample_records SET organ_type = 'Colon' WHERE organ_type IN ('Colon cancer', 'CRC');
+UPDATE sample_records SET organ_type = 'Salivary gland' WHERE organ_type = 'Salivary gland cancer';
+UPDATE sample_records SET organ_type = 'Uterus' WHERE organ_type = 'Uterus cancer';
+UPDATE sample_records SET organ_type = 'Gastroesophageal' WHERE organ_type = 'Gastroesophageal cancer';
+UPDATE sample_records SET organ_type = 'Gastrointestinal' WHERE organ_type = 'Gastrointestinal cancer';
+UPDATE sample_records SET organ_type = 'Stomach' WHERE organ_type = 'Stomach cancer';
+UPDATE sample_records SET organ_type = 'Thyroid' WHERE organ_type = 'Thyroid cancer';
+UPDATE sample_records SET organ_type = 'Testicular' WHERE organ_type = 'Testicular cancer';
+UPDATE sample_records SET organ_type = 'Brain' WHERE organ_type = 'Brain cancer';
+UPDATE sample_records SET organ_type = 'Blood' WHERE organ_type = 'Blood cancer';
+UPDATE sample_records SET organ_type = 'Gall Bladder' WHERE organ_type = 'Gall Bladder cancer';
+UPDATE sample_records SET organ_type = 'Neuroendocrine gland' WHERE organ_type = 'Neuroendocrine gland cancer';
+UPDATE sample_records SET organ_type = 'Duodenum' WHERE organ_type = 'Duodenum cancer';
+UPDATE sample_records SET organ_type = 'Esophagus' WHERE organ_type = 'Esophagus cancer';
+UPDATE sample_records SET organ_type = 'Anal Canal' WHERE organ_type = 'Anal Canal cancer';
+UPDATE sample_records SET organ_type = 'Adnexael' WHERE organ_type = 'Adnexael cancer';
+UPDATE sample_records SET organ_type = 'Perianal' WHERE organ_type = 'Perianal cancer';
+UPDATE sample_records SET organ_type = RTRIM(organ_type, '?') WHERE organ_type LIKE '%?';
+"

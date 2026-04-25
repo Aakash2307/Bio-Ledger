@@ -53,7 +53,6 @@ export default function CaseDistributionChart({
   const totalTypes = data.length;
   const topCase    = data.reduce((a, b) => (b.value > a.value ? b : a), data[0] ?? {});
 
-  // CAN = CTN + COT + CS
   const canCount = data
     .filter(d => ["CTN", "COT", "CS"].includes(d.name))
     .reduce((sum, d) => sum + d.value, 0);
@@ -75,6 +74,8 @@ export default function CaseDistributionChart({
       padding: "28px 32px",
       flex: 2.5,
       minWidth: 380,
+      display: "flex",
+      flexDirection: "column",
       border: "1px solid #eef0f4",
       boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
     }}>
@@ -170,7 +171,7 @@ export default function CaseDistributionChart({
             </div>
           )}
 
-          {/* CAN count — CTN + COT + CS */}
+          {/* CAN count */}
           <div style={{
             display: "flex", alignItems: "center", gap: 7,
             background: "#fdf2f8", border: "1px solid #f9a8d4",
@@ -187,20 +188,19 @@ export default function CaseDistributionChart({
               </svg>
             </div>
             <div>
-              <div style={{ fontSize: 17, color: "#db2777", marginTop: 1 , fontWeight: 700 }}>CAN</div>
+              <div style={{ fontSize: 17, color: "#db2777", marginTop: 1, fontWeight: 700 }}>CAN</div>
               <div style={{ fontSize: 10, fontWeight: 100, color: "#9d174d", lineHeight: 1 }}>
                 {canCount.toLocaleString()}
               </div>
-              
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── Donut + legend ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+      {/* ── Donut + legend — flex: 1 so it fills remaining card height ── */}
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 24, flex: 1 }}>
 
-        {/* Donut with active-shape hover expansion */}
+        {/* Donut */}
         <div style={{ width: 220, height: 220, flexShrink: 0, position: "relative" }}>
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
@@ -225,7 +225,7 @@ export default function CaseDistributionChart({
             </PieChart>
           </ResponsiveContainer>
 
-          {/* Centre label — updates live on hover */}
+          {/* Centre label */}
           <div style={{
             position: "absolute", top: "50%", left: "50%",
             transform: "translate(-50%, -50%)",
@@ -257,9 +257,11 @@ export default function CaseDistributionChart({
           </div>
         </div>
 
-        {/* Redesigned legend — badge style with hover sync */}
+        {/* Legend — scrollable, fills remaining height */}
         <div style={{
-          flex: 1, maxHeight: 220, overflowY: "auto",
+          flex: 1,
+          maxHeight: 380,
+          overflowY: "auto",
           display: "flex", flexDirection: "column", gap: 5, paddingRight: 4,
         }}>
           {data.map((item, i) => (
@@ -278,7 +280,6 @@ export default function CaseDistributionChart({
                 background: activeIndex === i ? `${item.color}12` : "transparent",
               }}
             >
-              {/* Colour swatch box */}
               <div style={{
                 width: 28, height: 28, borderRadius: 6, flexShrink: 0,
                 background: `${item.color}20`,
@@ -288,7 +289,6 @@ export default function CaseDistributionChart({
                 <div style={{ width: 10, height: 10, borderRadius: 3, background: item.color }} />
               </div>
 
-              {/* Name + count */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{
                   fontSize: 13, fontWeight: 600, color: "#374151",
@@ -301,7 +301,6 @@ export default function CaseDistributionChart({
                 </div>
               </div>
 
-              {/* Percent badge */}
               <span style={{
                 fontSize: 11, fontWeight: 700,
                 padding: "2px 8px", borderRadius: 20,
@@ -321,7 +320,6 @@ export default function CaseDistributionChart({
             </div>
           ))}
         </div>
-
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 // components/OrganCaseBreakdownChart.jsx
-// Left: horizontal bar chart (replaces donut)
-// On hover: left panel swaps to dedicated organ breakdown (total + case label bars)
-// Right: same legend list with pills as before
+// Left: horizontal bar chart (bigger, shows all organs)
+// Single click on legend row → show breakdown panel (stays until another is clicked)
+// Double click on legend row or breakdown panel → navigate to patients
 
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
@@ -41,8 +41,9 @@ const DEFAULT_BENIGN_BREAKDOWN = {
 
 export default function OrganCaseBreakdownChart({ summary = null, period = "all" }) {
   const navigate = useNavigate();
-  const [hoveredOrgan, setHoveredOrgan] = useState(null);
-  const [searchQuery, setSearchQuery]   = useState("");
+  const [selectedOrgan, setSelectedOrgan] = useState(null); // single click — sticky
+  const [hoveredOrgan, setHoveredOrgan]   = useState(null); // hover — highlight only
+  const [searchQuery, setSearchQuery]     = useState("");
 
   const malignantRaw = summary?.organ_case_breakdown        ?? DEFAULT_ORGAN_BREAKDOWN;
   const benignRaw    = summary?.benign_organ_case_breakdown  ?? DEFAULT_BENIGN_BREAKDOWN;
@@ -86,8 +87,8 @@ export default function OrganCaseBreakdownChart({ summary = null, period = "all"
   const benignOrgans = Object.keys(benignRaw).filter(o => o && o !== "null").length;
   const maxTotal     = Math.max(...organList.map(o => o.total), 1);
 
-  const hoveredData = hoveredOrgan
-    ? organList.find(o => o.organ === hoveredOrgan)
+  const selectedData = selectedOrgan
+    ? organList.find(o => o.organ === selectedOrgan)
     : null;
 
   function navTo(organ, caseLabel) {
@@ -95,6 +96,15 @@ export default function OrganCaseBreakdownChart({ summary = null, period = "all"
     if (caseLabel) params.set("case_label", caseLabel);
     if (period !== "all") params.set("period", period);
     navigate(`/patients?${params.toString()}`);
+  }
+
+  function handleSingleClick(organ) {
+    // toggle off if same organ clicked again
+    setSelectedOrgan(prev => prev === organ ? null : organ);
+  }
+
+  function handleDoubleClick(organ, caseLabel = null) {
+    navTo(organ, caseLabel);
   }
 
   return (
@@ -114,8 +124,7 @@ export default function OrganCaseBreakdownChart({ summary = null, period = "all"
           Organ Type Distribution
         </div>
         <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 3 }}>
-          {totalSamples.toLocaleString()} samples · hover an organ to see breakdown
-          <span style={{ marginLeft: 6, color: "#3b82f6" }}>· Click any row to filter patients</span>
+          {totalSamples.toLocaleString()} samples · single click to select · double click to filter patients
         </div>
 
         <div style={{ display: "flex", gap: 10, marginTop: 12, alignItems: "center", flexWrap: "wrap" }}>
@@ -178,7 +187,7 @@ export default function OrganCaseBreakdownChart({ summary = null, period = "all"
               onChange={e => setSearchQuery(e.target.value)}
               style={{
                 border: "none", outline: "none", background: "transparent",
-                fontSize: 11, color: "#374151", width: 140, fontFamily: "inherit",
+                fontSize: 11, color: "#374151", width: 200, fontFamily: "inherit",
               }}
             />
             {searchQuery && (
@@ -193,18 +202,29 @@ export default function OrganCaseBreakdownChart({ summary = null, period = "all"
       <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
 
         {/* LEFT: bar chart or breakdown panel */}
-        <div style={{ width: 240, flexShrink: 0 }}>
-          {hoveredData
-            ? <BreakdownPanel data={hoveredData} totalSamples={totalSamples} navTo={navTo} />
-            : <BarChart organList={organList} maxTotal={maxTotal} totalSamples={totalSamples}
-                navTo={navTo} />
+        <div style={{ width: 320, flexShrink: 0 }}>
+          {selectedData
+            ? <BreakdownPanel
+                data={selectedData}
+                totalSamples={totalSamples}
+                onSingleClick={handleSingleClick}
+                onDoubleClick={handleDoubleClick}
+              />
+            : <BarChart
+                organList={organList}
+                maxTotal={maxTotal}
+                totalSamples={totalSamples}
+                selectedOrgan={selectedOrgan}
+                onSingleClick={handleSingleClick}
+                onDoubleClick={handleDoubleClick}
+              />
           }
         </div>
 
         {/* RIGHT: legend list with pills */}
         <div style={{
           flex: 1, display: "flex", flexDirection: "column", gap: 4,
-          maxHeight: 300, overflowY: "auto", paddingRight: 4,
+          maxHeight: 380, overflowY: "auto", paddingRight: 4,
         }}>
           {filtered.map(({ organ, total, cases, color }) => {
             const caseEntries = Object.entries(cases)
@@ -215,7 +235,8 @@ export default function OrganCaseBreakdownChart({ summary = null, period = "all"
                 return b[1] - a[1];
               });
 
-            const isHov = hoveredOrgan === organ;
+            const isSelected = selectedOrgan === organ;
+            const isHov      = hoveredOrgan === organ;
 
             return (
               <div
@@ -225,11 +246,13 @@ export default function OrganCaseBreakdownChart({ summary = null, period = "all"
                 style={{ marginBottom: 2 }}
               >
                 <div
-                  onClick={() => navTo(organ, null)}
+                  onClick={() => handleSingleClick(organ)}
+                  onDoubleClick={() => handleDoubleClick(organ, null)}
                   style={{
                     display: "flex", alignItems: "center", gap: 8,
                     padding: "5px 10px", borderRadius: 8, cursor: "pointer",
-                    background: isHov ? "#f0f9ff" : "transparent",
+                    background: isSelected ? "#eff6ff" : isHov ? "#f8fafc" : "transparent",
+                    border: isSelected ? "1px solid #bfdbfe" : "1px solid transparent",
                     transition: "background 0.15s",
                   }}
                 >
@@ -237,7 +260,7 @@ export default function OrganCaseBreakdownChart({ summary = null, period = "all"
                     width: 10, height: 10, borderRadius: 2,
                     background: color, flexShrink: 0,
                   }} />
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#374151", flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: isSelected ? 700 : 600, color: isSelected ? "#1d4ed8" : "#374151", flex: 1 }}>
                     {organ}
                   </div>
                   <div style={{ fontSize: 11, color: "#6b7280", whiteSpace: "nowrap" }}>
@@ -257,8 +280,9 @@ export default function OrganCaseBreakdownChart({ summary = null, period = "all"
                   {caseEntries.map(([label, count]) => (
                     <span
                       key={label}
-                      onClick={() => navTo(organ, label)}
-                      title={`${label}: ${count} samples`}
+                      onClick={e => { e.stopPropagation(); handleSingleClick(organ); }}
+                      onDoubleClick={e => { e.stopPropagation(); handleDoubleClick(organ, label); }}
+                      title={`${label}: ${count} — double click to filter`}
                       style={{
                         fontSize: 10, fontWeight: 500,
                         padding: "2px 7px", borderRadius: 20,
@@ -283,49 +307,50 @@ export default function OrganCaseBreakdownChart({ summary = null, period = "all"
 }
 
 // ── Horizontal bar chart (default left panel) ─────────────────────────────────
-function BarChart({ organList, maxTotal, totalSamples, navTo }) {
-  const visible = organList.slice(0, 12);
+function BarChart({ organList, maxTotal, totalSamples, selectedOrgan, onSingleClick, onDoubleClick }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {visible.map(({ organ, total, color }) => {
+    <div style={{
+      display: "flex", flexDirection: "column", gap: 7,
+      maxHeight: 380, overflowY: "auto", paddingRight: 6,
+    }}>
+      {organList.map(({ organ, total, color }) => {
         const pct = (total / maxTotal) * 100;
+        const isSelected = selectedOrgan === organ;
         return (
           <div
             key={organ}
-            onClick={() => navTo(organ, null)}
-            style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer" }}
+            onClick={() => onSingleClick(organ)}
+            onDoubleClick={() => onDoubleClick(organ, null)}
+            style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}
           >
             <div style={{
               width: 8, height: 8, borderRadius: 2,
               background: color, flexShrink: 0,
             }} />
             <div style={{
-              flex: 1, height: 14, background: "#f1f5f9",
-              borderRadius: 4, overflow: "hidden",
+              flex: 1, height: 20, background: "#f1f5f9",
+              borderRadius: 5, overflow: "hidden",
+              outline: isSelected ? `2px solid ${color}` : "none",
             }}>
               <div style={{
                 width: `${pct}%`, height: "100%",
-                background: color, borderRadius: 4,
-                transition: "width 0.3s ease",
+                background: color, borderRadius: 5,
+                opacity: isSelected ? 1 : 0.75,
+                transition: "width 0.3s ease, opacity 0.15s",
               }} />
             </div>
-            <div style={{ fontSize: 10, color: "#6b7280", width: 24, textAlign: "right", flexShrink: 0 }}>
+            <div style={{ fontSize: 10, color: "#6b7280", width: 28, textAlign: "right", flexShrink: 0 }}>
               {total}
             </div>
           </div>
         );
       })}
-      {organList.length > 12 && (
-        <div style={{ fontSize: 10, color: "#9ca3af", textAlign: "center", marginTop: 4 }}>
-          +{organList.length - 12} more  to see
-        </div>
-      )}
     </div>
   );
 }
 
-// ── Breakdown panel (shown on hover) ──────────────────────────────────────────
-function BreakdownPanel({ data, totalSamples, navTo }) {
+// ── Breakdown panel (shown on single click, stays until another selected) ──────
+function BreakdownPanel({ data, totalSamples, onSingleClick, onDoubleClick }) {
   const { organ, total, cases, color } = data;
 
   const sortedCases = Object.entries(cases)
@@ -341,32 +366,43 @@ function BreakdownPanel({ data, totalSamples, navTo }) {
   return (
     <div style={{
       background: "#f8fafc", borderRadius: 12,
-      padding: "14px 16px", border: "1px solid #e2e8f0",
+      padding: "16px 18px", border: "1px solid #e2e8f0",
     }}>
       {/* Organ header */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
         <div style={{ width: 10, height: 10, borderRadius: 2, background: color, flexShrink: 0 }} />
         <div style={{ fontWeight: 700, fontSize: 13, color: "#111827", flex: 1 }}>{organ}</div>
-        <div onClick={() => navTo(organ, null)}
-          style={{ fontSize: 10, color: "#3b82f6", cursor: "pointer", fontWeight: 600 }}>
-          View all →
+        <div
+          onClick={() => onSingleClick(organ)}
+          style={{ fontSize: 10, color: "#94a3b8", cursor: "pointer", fontWeight: 500 }}
+          title="Close panel"
+        >
+          ✕
         </div>
       </div>
 
       {/* Total */}
       <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 28, fontWeight: 800, color: "#111827", lineHeight: 1 }}>{total}</div>
+        <div style={{ fontSize: 30, fontWeight: 800, color: "#111827", lineHeight: 1 }}>{total}</div>
         <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 2 }}>
           total samples · {((total / totalSamples) * 100).toFixed(1)}% of all
+        </div>
+        <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4 }}>
+          double click a row to filter patients
         </div>
       </div>
 
       {/* Case label breakdown bars */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
         {sortedCases.map(([label, count]) => {
           const pct = (count / maxCase) * 100;
           return (
-            <div key={label} onClick={() => navTo(organ, label)} style={{ cursor: "pointer" }}>
+            <div
+              key={label}
+              onDoubleClick={() => onDoubleClick(organ, label)}
+              style={{ cursor: "pointer" }}
+              title={`Double click to filter by ${label}`}
+            >
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
                 <span style={{ fontSize: 11, fontWeight: 600, color: getCaseLabelColor(label) }}>
                   {label}
@@ -378,11 +414,11 @@ function BreakdownPanel({ data, totalSamples, navTo }) {
                   </span>
                 </span>
               </div>
-              <div style={{ height: 6, background: "#e2e8f0", borderRadius: 3, overflow: "hidden" }}>
+              <div style={{ height: 7, background: "#e2e8f0", borderRadius: 4, overflow: "hidden" }}>
                 <div style={{
                   width: `${pct}%`, height: "100%",
                   background: getCaseLabelColor(label),
-                  borderRadius: 3, transition: "width 0.3s ease",
+                  borderRadius: 4, transition: "width 0.3s ease",
                 }} />
               </div>
             </div>

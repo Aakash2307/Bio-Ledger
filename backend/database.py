@@ -37,7 +37,7 @@ def create_tables():
     CREATE TABLE IF NOT EXISTS samples (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         patient_ref INTEGER NOT NULL,
-        sid TEXT NOT NULL UNIQUE,
+        sid TEXT NOT NULL UNIQUE, 
 
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 

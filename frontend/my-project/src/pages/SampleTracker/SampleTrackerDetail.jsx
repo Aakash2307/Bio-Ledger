@@ -5,7 +5,7 @@ import { useParams, useNavigate } from "react-router-dom";
 const MOCK_SAMPLES = {
   SMP001: {
     sampleId: "SMP001",
-    patientName: "Prithvi Kotian",
+    patientName: "Aakash Chari",
     patientId: "PAT001",
     sampleType: "Blood",
     stages: [
@@ -25,7 +25,7 @@ const MOCK_SAMPLES = {
   },
   SMP002: {
     sampleId: "SMP002",
-    patientName: "Prithvi Kotian",
+    patientName: "-",
     patientId: "PAT001",
     sampleType: "Tissue",
     stages: [
@@ -45,7 +45,7 @@ const MOCK_SAMPLES = {
   },
   SMP003: {
     sampleId: "SMP003",
-    patientName: "Anika Sharma",
+    patientName: "-",
     patientId: "PAT002",
     sampleType: "Blood",
     stages: [

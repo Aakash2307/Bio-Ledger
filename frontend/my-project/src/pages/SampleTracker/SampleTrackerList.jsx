@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 const MOCK_PATIENTS = [
   {
     id: "PAT001",
-    name: "Prithvi Kotian",
+    name: "-",
     samples: [
       { sampleId: "SMP001", type: "Blood", collectedDate: "2025-01-10", currentStage: 2, totalStages: 12, status: "In Progress" },
       { sampleId: "SMP002", type: "Tissue", collectedDate: "2025-02-14", currentStage: 6, totalStages: 12, status: "Pending" },
@@ -13,21 +13,21 @@ const MOCK_PATIENTS = [
   },
   {
     id: "PAT002",
-    name: "Anika Sharma",
+    name: "-",
     samples: [
       { sampleId: "SMP003", type: "Blood", collectedDate: "2025-01-22", currentStage: 12, totalStages: 12, status: "Completed" },
     ],
   },
   {
     id: "PAT003",
-    name: "Rohan Mehta",
+    name: "-",
     samples: [
       { sampleId: "SMP004", type: "Saliva", collectedDate: "2025-03-05", currentStage: 4, totalStages: 12, status: "In Progress" },
     ],
   },
   {
     id: "PAT004",
-    name: "Divya Nair",
+    name: "-",
     samples: [
       { sampleId: "SMP005", type: "Blood", collectedDate: "2025-03-18", currentStage: 1, totalStages: 12, status: "In Progress" },
       { sampleId: "SMP006", type: "Blood", collectedDate: "2025-04-01", currentStage: 3, totalStages: 12, status: "Pending" },
@@ -35,14 +35,14 @@ const MOCK_PATIENTS = [
   },
   {
     id: "PAT005",
-    name: "Karan Bhatia",
+    name: "-",
     samples: [
       { sampleId: "SMP007", type: "Tissue", collectedDate: "2025-02-28", currentStage: 9, totalStages: 12, status: "In Progress" },
     ],
   },
   {
     id: "PAT006",
-    name: "Sneha Iyer",
+    name: "-",
     samples: [
       { sampleId: "SMP008", type: "Blood", collectedDate: "2025-04-10", currentStage: 12, totalStages: 12, status: "Completed" },
     ],
@@ -143,7 +143,7 @@ export default function SampleTrackerList() {
             <input
               value={patientNameQuery}
               onChange={(e) => setPatientNameQuery(e.target.value)}
-              placeholder="e.g. Prithvi Kotian"
+              placeholder="e.g Aakash Chari"
               style={{
                 width: "100%", boxSizing: "border-box",
                 padding: "10px 14px", borderRadius: 8,

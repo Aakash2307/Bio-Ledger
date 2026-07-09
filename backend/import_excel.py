@@ -1,7 +1,7 @@
 import pandas as pd
 from database import get_connection, create_tables
 
-EXCEL_FILE = "old_files/patients.xlsx"
+EXCEL_FILE = "sample_lookup.xlsx"
 SHEET_NAME = "India_Lab"
 
 
@@ -80,7 +80,7 @@ for _, row in df.iterrows():
             sample_collection_date, dna_availability,
             sequencing, din, research_report,
             sequencing_partner, data_received,
-            tmr_e, old_gbp, gbp,
+            tmr_e, gbp,
             data_analysed_som, data_analysed_germ,
             sample_labeling, analysis,
             report_status, report_release_date,

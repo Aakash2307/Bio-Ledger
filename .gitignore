@@ -14,10 +14,15 @@ __pycache__/
 
 # Excel & DB files (your case)
 backend/*.xlsx
+
+backend/Report_Automation/*.xlsx
 backend/*.db
 
 # Optional: keep specific file if needed
 # !backend/patients.xlsx
 
-new_backend/venv/
-new_backend/*.db
+backend/**/*.xlsx
+backend/Report Automation/Database_integrations_With_Filter V1/Somatic and germline important gene list.xlsx
+
+backend/Report Automation/new_report_template.docx
+

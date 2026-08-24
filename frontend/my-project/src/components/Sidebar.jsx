@@ -11,6 +11,7 @@ const navItems = [
   { label: "Sample Tracker",    icon: "🧪", path: "/samples"    },
   { label: "Sequencing analysis", icon: "〜", path: "/sequencing" },
   { label: "Reports",    icon: "📄", path: "/reports"    },
+  { label: "Variant Analysis", icon: "🔍", path: "/variants"   },
   { label: "Settings",   icon: "⚙",  path: "/settings"   },
 ];
 

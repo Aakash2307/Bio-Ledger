@@ -70,6 +70,18 @@ def get_dashboard_summary(period: str = "all"):
     """)
     case_counts = {row["new_case_label"]: row["count"] for row in cursor.fetchall()}
 
+
+
+    # ── Source distribution ───────────────────────────────────────────────────
+    cursor.execute(f"""
+        SELECT sr.source, COUNT(*) as count
+        FROM sample_records sr
+        WHERE sr.source IS NOT NULL AND sr.source != ''
+        {record_date_filter}
+        GROUP BY sr.source
+    """)
+    source_counts = {row["source"]: row["count"] for row in cursor.fetchall()}
+
     # ── Single organ x case_label query (all labels including Benign) ─────────
     # We fetch everything in one shot and derive all 4 dicts in Python.
     # This ensures that when e.g. "Colon" (Benign) normalizes to "Colon cancer",
@@ -120,6 +132,7 @@ def get_dashboard_summary(period: str = "all"):
         "total_samples":               total_samples,
         "sequenced_samples":           sequenced_samples,
         "case_counts":                 case_counts,
+        "source_counts":               source_counts,
         "organ_counts":                organ_counts,
         "benign_organ_counts":         benign_organ_counts,
         "organ_case_breakdown":        organ_case_breakdown,

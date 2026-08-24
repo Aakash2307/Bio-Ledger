@@ -1,0 +1,339 @@
+.rp-page {
+  padding: 32px;
+}
+
+.rp-header {
+  margin-bottom: 24px;
+}
+
+.rp-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.rp-subtitle {
+  font-size: 14px;
+  color: #64748b;
+  margin: 4px 0 0 0;
+}
+
+/* Stat cards */
+.rp-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 640px) {
+  .rp-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rp-stat-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.rp-stat-purple {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6, #9333ea);
+}
+
+.rp-stat-orange {
+  background: linear-gradient(135deg, #fbbf24, #f97316, #f43f5e);
+}
+
+.rp-stat-circle {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.rp-stat-circle-1 {
+  width: 96px;
+  height: 96px;
+  top: -16px;
+  right: -16px;
+}
+
+.rp-stat-circle-2 {
+  width: 112px;
+  height: 112px;
+  bottom: -24px;
+  right: -40px;
+}
+
+.rp-stat-content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rp-stat-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 0;
+}
+
+.rp-stat-value {
+  font-size: 36px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 4px 0 0 0;
+}
+
+.rp-stat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  font-size: 22px;
+}
+
+/* Search */
+.rp-search-row {
+  margin-bottom: 16px;
+}
+
+.rp-search-input {
+  width: 100%;
+  max-width: 420px;
+  padding: 10px 16px;
+  font-size: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  outline: none;
+}
+
+.rp-search-input:focus {
+  border-color: #a78bfa;
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.2);
+}
+
+/* Table */
+.rp-table-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+}
+
+.rp-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 14px;
+}
+
+.rp-table thead {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.rp-table th {
+  padding: 12px 24px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+}
+
+.rp-table td {
+  padding: 12px 24px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.rp-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.rp-empty-cell {
+  text-align: center;
+  color: #94a3b8;
+  padding: 40px 24px;
+}
+
+/* Patient cell */
+.rp-patient-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rp-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.rp-avatar-violet { background: linear-gradient(135deg, #8b5cf6, #a855f7); }
+.rp-avatar-blue { background: linear-gradient(135deg, #3b82f6, #06b6d4); }
+.rp-avatar-emerald { background: linear-gradient(135deg, #10b981, #14b8a6); }
+.rp-avatar-orange { background: linear-gradient(135deg, #f97316, #f59e0b); }
+.rp-avatar-pink { background: linear-gradient(135deg, #ec4899, #f43f5e); }
+.rp-avatar-indigo { background: linear-gradient(135deg, #6366f1, #3b82f6); }
+
+.rp-patient-name {
+  font-weight: 500;
+  color: #1e293b;
+  margin: 0;
+}
+
+.rp-patient-id {
+  font-size: 12px;
+  font-weight: 500;
+  color: #7c3aed;
+  margin: 2px 0 0 0;
+}
+
+.rp-sample-id {
+  font-weight: 600;
+  color: #334155;
+}
+
+.rp-release-date {
+  color: #64748b;
+}
+
+/* Organ badges */
+.rp-organ-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.rp-organ-orange { background: #ffedd5; color: #c2410c; }
+.rp-organ-sky { background: #e0f2fe; color: #0369a1; }
+.rp-organ-pink { background: #fce7f3; color: #be185d; }
+.rp-organ-indigo { background: #e0e7ff; color: #4338ca; }
+.rp-organ-red { background: #fee2e2; color: #b91c1c; }
+.rp-organ-amber { background: #fef3c7; color: #b45309; }
+.rp-organ-purple { background: #f3e8ff; color: #7e22ce; }
+.rp-organ-teal { background: #ccfbf1; color: #0f766e; }
+.rp-organ-slate { background: #f1f5f9; color: #475569; }
+
+/* Action buttons */
+.rp-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.rp-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #ffffff;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+}
+
+.rp-btn-view {
+  background: linear-gradient(135deg, #475569, #334155);
+}
+.rp-btn-view:hover {
+  background: linear-gradient(135deg, #334155, #1e293b);
+}
+
+.rp-btn-download {
+  background: linear-gradient(135deg, #10b981, #14b8a6);
+}
+.rp-btn-download:hover {
+  background: linear-gradient(135deg, #059669, #0d9488);
+}
+
+
+.rp-btn-delete {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+.rp-btn-delete:hover {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+}
+.rp-btn-delete:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+}
+
+.rp-delete-error {
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: #b91c1c;
+  background: #fef2f2;
+  border-radius: 6px;
+}
+
+
+.rp-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.rp-actions-left {
+  display: flex;
+  gap: 8px;
+}
+
+.rp-btn-delete-icon {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: #94a3b8; /* slate-400, adjust to your palette */
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.rp-btn-delete-icon:hover:not(:disabled) {
+  color: #ef4444; /* red-500 */
+  background-color: #fee2e2; /* red-100 */
+}
+
+.rp-btn-delete-icon:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.rp-delete-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: rp-spin 0.7s linear infinite;
+}
+
+@keyframes rp-spin {
+  to { transform: rotate(360deg); }
+}

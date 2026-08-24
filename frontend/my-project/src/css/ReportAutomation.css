@@ -1,0 +1,373 @@
+.ra-page {
+  padding: 32px;
+}
+
+.ra-header {
+  margin-bottom: 24px;
+}
+
+.ra-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.ra-subtitle {
+  font-size: 14px;
+  color: #64748b;
+  margin: 4px 0 0 0;
+}
+
+/* ── Upload + Run panel ─────────────────────────────────────── */
+
+.ra-panel {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  padding: 24px;
+  margin-bottom: 32px;
+}
+
+.ra-panel-row {
+  margin-bottom: 20px;
+}
+
+.ra-sid-field {
+  max-width: 280px;
+}
+
+.ra-sid-input {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  outline: none;
+}
+
+.ra-sid-input:focus {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+}
+
+.ra-panel-files {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+@media (max-width: 900px) {
+  .ra-panel-files {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ra-field {
+  display: block;
+}
+
+.ra-field-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #334155;
+}
+
+.ra-field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ra-field-filename {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ra-browse-btn {
+  cursor: pointer;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #334155;
+  background: #f1f5f9;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.ra-browse-btn:hover {
+  background: #e2e8f0;
+}
+
+.ra-file-input {
+  display: none;
+}
+
+.ra-panel-error {
+  margin-top: 16px;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: #b91c1c;
+  background: #fef2f2;
+  border-radius: 6px;
+}
+
+.ra-panel-message {
+  margin-top: 16px;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-radius: 6px;
+}
+
+.ra-panel-actions {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.ra-run-btn {
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.ra-run-btn:hover {
+  background: linear-gradient(135deg, #1d4ed8, #4338ca);
+}
+
+.ra-run-btn-disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+}
+.ra-run-btn-disabled:hover {
+  background: #cbd5e1;
+}
+
+.ra-download-btn {
+  display: inline-block;
+  background: linear-gradient(135deg, #059669, #047857);
+  text-decoration: none;
+  text-align: center;
+}
+.ra-download-btn:hover {
+  background: linear-gradient(135deg, #047857, #036b4f);
+}
+
+.ra-stop-btn {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  margin-left: 12px;
+}
+.ra-stop-btn:hover {
+  background: linear-gradient(135deg, #b91c1c, #991b1b);
+}
+
+/* ── Status list ─────────────────────────────────────────────── */
+
+.ra-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.ra-list-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0;
+}
+
+.ra-search-input {
+  width: 100%;
+  max-width: 340px;
+  padding: 8px 14px;
+  font-size: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  outline: none;
+}
+
+.ra-search-input:focus {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+}
+
+.ra-table-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+}
+
+.ra-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 14px;
+  gap: 10px;
+  
+}
+
+.ra-table thead {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.ra-table th {
+  padding: 12px 24px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+}
+
+.ra-table td {
+  padding: 12px 24px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.ra-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.ra-empty-cell {
+  text-align: center;
+  color: #94a3b8;
+  padding: 32px 24px;
+}
+
+.ra-sample-id {
+  font-weight: 600;
+  color: #334155;
+}
+
+.ra-patient-id {
+  font-weight: 600;
+  color: #2563eb;
+}
+
+.ra-organ {
+  color: #64748b;
+}
+
+.ra-download-link {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #ffffff;
+  background: #059669;
+  text-decoration: none;
+}
+.ra-download-link:hover {
+  background: #047857;
+}
+
+/* Status badges */
+.ra-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.ra-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.ra-badge-not-generated {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.ra-badge-queued {
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.ra-badge-processing {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.ra-badge-completed {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.ra-badge-failed {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.ra-detected-sid {
+  font-size: 0.9rem;
+  color: #444;
+  margin: 4px 0 8px;
+}
+
+.ra-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.ra-progress-track {
+  position: relative;
+  flex: 1;
+  height: 14px;
+  background: #eee;
+  border-radius: 999px;
+  overflow: visible; /* let the icon sit centered on the track without being clipped */
+}
+
+.ra-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6fcf97, #27ae60);
+  border-radius: 999px;
+  transition: width 0.35s ease;
+}
+
+.ra-progress-horse {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 20px;
+  transition: left 0.35s ease;
+  line-height: 1;
+}
+
+.ra-progress-percent {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #333;
+  min-width: 34px;
+  text-align: right;
+}

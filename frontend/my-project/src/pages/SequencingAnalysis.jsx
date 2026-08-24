@@ -2,6 +2,7 @@
 // Phase 2 — Static placeholder / teaser page
 // TODO Phase 3: implement each module below
 
+import { useNavigate } from "react-router-dom";
 import logo from "../assets/tzarnewlogo.png";
 
 const MODULES = [
@@ -13,6 +14,7 @@ const MODULES = [
     color: "#4A90D9",
     glow: "rgba(74,144,217,0.15)",
     soon: false, // first card, slightly more "ready" feel
+    route: "/sequencing-analysis/fastq-vcf",
   },
   {
     key: "prs",
@@ -21,7 +23,8 @@ const MODULES = [
     description: "Polygenic Risk Score computation across curated trait panels",
     color: "#8B72BE",
     glow: "rgba(139,114,190,0.15)",
-    soon: true,
+    soon: false,
+    route: "/sequencing-analysis/prs",
   },
   {
     key: "coverage",
@@ -30,7 +33,8 @@ const MODULES = [
     description: "Per-base & per-exon depth metrics with QC thresholds",
     color: "#3BBFB2",
     glow: "rgba(59,191,178,0.15)",
-    soon: true,
+    soon: false,
+    route: "/sequencing-analysis/coverage",
   },
   {
     key: "report",
@@ -39,7 +43,8 @@ const MODULES = [
     description: "Auto-generated clinical genomics reports from pipeline output",
     color: "#4CAF82",
     glow: "rgba(76,175,130,0.15)",
-    soon: true,
+    soon: false,
+    route: "/sequencing/report-automation",
   },
   {
     key: "cnv",
@@ -48,7 +53,8 @@ const MODULES = [
     description: "Copy number variant detection from WES/WGS data",
     color: "#E8A838",
     glow: "rgba(232,168,56,0.15)",
-    soon: true,
+    soon: false,
+    route: "/sequencing-analysis/cnv",
   },
 //   {
 //     key: "fusion",
@@ -58,10 +64,13 @@ const MODULES = [
 //     color: "#D95B5B",
 //     glow: "rgba(217,91,91,0.15)",
 //     soon: true,
+//     route: "/sequencing-analysis/fusion",
 //   },
 ];
 
 export default function SequencingAnalysis() {
+  const navigate = useNavigate();
+
   return (
     <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif" }}>
 
@@ -76,20 +85,6 @@ export default function SequencingAnalysis() {
           </p>
         </div>
         <img src={logo} alt="Logo" style={{ height: 44, objectFit: "contain" }} />
-      </div>
-
-      {/* ── Under construction banner ── */}
-      <div style={{
-        marginBottom: 36,
-        padding: "10px 18px",
-        borderRadius: 10,
-        background: "linear-gradient(90deg, #fffbeb, #fef3c7)",
-        border: "1px solid #fcd34d",
-        display: "flex", alignItems: "center", gap: 10,
-        fontSize: 13, color: "#92400e", fontWeight: 500,
-      }}>
-        <span style={{ fontSize: 16 }}>🚧</span>
-        These modules are currently under development and will be available in Phase 3.
       </div>
 
       {/* ── Section label ── */}
@@ -115,6 +110,17 @@ export default function SequencingAnalysis() {
         {MODULES.map(mod => (
           <div
             key={mod.key}
+            role="button"
+            tabIndex={mod.soon ? -1 : 0}
+            onClick={() => {
+              if (!mod.soon && mod.route) navigate(mod.route);
+            }}
+            onKeyDown={e => {
+              if (!mod.soon && mod.route && (e.key === "Enter" || e.key === " ")) {
+                e.preventDefault();
+                navigate(mod.route);
+              }
+            }}
             style={{
               borderRadius: 14,
               border: `1.5px solid ${mod.soon ? "#e2e8f0" : mod.color + "55"}`,
@@ -123,7 +129,7 @@ export default function SequencingAnalysis() {
               position: "relative",
               opacity: mod.soon ? 0.72 : 1,
               transition: "all 0.18s",
-              cursor: "default",
+              cursor: mod.soon ? "default" : "pointer",
             }}
             onMouseEnter={e => {
               e.currentTarget.style.opacity = "1";

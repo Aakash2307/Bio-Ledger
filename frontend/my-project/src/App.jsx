@@ -10,6 +10,12 @@ import SampleTrackerList    from "./pages/SampleTracker/SampleTrackerList";
 import SampleTrackerDetail  from "./pages/SampleTracker/SampleTrackerDetail";
 import SequencingAnalysis   from "./pages/SequencingAnalysis";
 import SplashScreen         from "./pages/SplashScreen";
+import Reports              from "./pages/Reports";
+import ReportAutomation     from "./pages/ReportAutomation";
+import BioLedgerSpinner     from "./pages/BioledgerSpinner";
+import VariantVisualization  from "./pages/VariantVisualization";
+
+
 
 function App() {
   const [splashDone, setSplashDone] = useState(false);
@@ -28,6 +34,11 @@ function App() {
             <Route path="/samples"                       element={<SampleTrackerList />} />
             <Route path="/samples/:sampleId"             element={<SampleTrackerDetail />} />
             <Route path="/sequencing"                    element={<SequencingAnalysis />} />
+            <Route path="/reports"                       element={<Reports />} />
+            <Route path="/sequencing/report-automation"  element={<ReportAutomation />} />
+            <Route path="/variants"                      element={<VariantVisualization />} />
+            <Route path="/spinner"                       element={<BioLedgerSpinner />} />
+            
           </Routes>
         </Layout>
       </div>

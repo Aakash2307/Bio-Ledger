@@ -102,7 +102,7 @@ function TrashIcon({ style }) {
 
 // ─── Filter Badge ─────────────────────────────────────────────────────────────
 function FilterBadge({ label, value, onClear }) {
-  const filterLabels = { organ_type: "Organ Type", case_label: "Case Label", period: "Period" };
+  const filterLabels = { organ_type: "Organ Type", case_label: "Case Label", source: "Source", period: "Period" };
   return (
     <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", borderRadius: 20, background: "#eff6ff", border: "1.5px solid #bfdbfe", fontSize: 13, fontWeight: 600, color: "#2563eb", marginBottom: 10, marginRight: 8 }}>
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -219,8 +219,9 @@ export default function PatientRecords() {
   const urlParams    = new URLSearchParams(location.search);
   const filterOrgan  = urlParams.get("organ_type") || "";
   const filterCase   = urlParams.get("case_label")  || "";
+  const filterSource = urlParams.get("source")      || "";   // ← NEW
   const filterPeriod = urlParams.get("period")       || "";
-  const hasAnyFilter = !!(filterOrgan || filterCase || filterPeriod);
+  const hasAnyFilter = !!(filterOrgan || filterCase || filterSource || filterPeriod);
 
   // ── Load patients on mount ──────────────────────────────────────────────────
   useEffect(() => { loadPatients(); }, []);
@@ -236,9 +237,8 @@ export default function PatientRecords() {
   // Key fix: depends on `patients` array + `loadingList` to avoid race condition
   useEffect(() => {
 
-
-     console.log("🔍 Filter effect:", {
-      filterOrgan, filterCase, filterPeriod,
+    console.log("🔍 Filter effect:", {
+      filterOrgan, filterCase, filterSource, filterPeriod,
       loadingList,
       patientsCount: patients.length,
       hasAnyFilter
@@ -275,14 +275,15 @@ export default function PatientRecords() {
                 }
 
                 // ── If only period filter, any sample passing period is enough ──
-                if (!filterOrgan && !filterCase) return true;
+                if (!filterOrgan && !filterCase && !filterSource) return true;
 
-                // ── Organ + Case filter on records ──
+                // ── Organ + Case + Source filter on records ──
                 return s.records?.some(r => {
-                  let organMatch = true, caseMatch = true;
-                  if (filterOrgan) organMatch = String(r.organ_type ?? "").toLowerCase() === filterOrgan.toLowerCase();
-                  if (filterCase)  caseMatch  = String(r.new_case_label ?? "").toLowerCase() === filterCase.toLowerCase();
-                  return organMatch && caseMatch;
+                  let organMatch = true, caseMatch = true, sourceMatch = true;
+                  if (filterOrgan)  organMatch  = String(r.organ_type ?? "").toLowerCase() === filterOrgan.toLowerCase();
+                  if (filterCase)   caseMatch   = String(r.new_case_label ?? "").toLowerCase() === filterCase.toLowerCase();
+                  if (filterSource) sourceMatch = String(r.source ?? "").toLowerCase() === filterSource.toLowerCase(); // ← NEW
+                  return organMatch && caseMatch && sourceMatch;
                 });
               });
               return matches ? p : null;
@@ -297,7 +298,7 @@ export default function PatientRecords() {
 
     applyFilter();
     return () => { cancelled = true; }; // cancel on unmount or re-run
-  }, [filterOrgan, filterCase, filterPeriod, patients, loadingList]);
+  }, [filterOrgan, filterCase, filterSource, filterPeriod, patients, loadingList]);
 
   // ── Remove individual filter from URL ───────────────────────────────────────
   function removeFilter(key) {
@@ -431,15 +432,9 @@ export default function PatientRecords() {
   const filterSummary = [
     filterOrgan  && `Organ: ${filterOrgan}`,
     filterCase   && `Case: ${filterCase}`,
+    filterSource && `Source: ${filterSource}`,   // ← NEW
     filterPeriod && `Period: ${filterPeriod}`,
   ].filter(Boolean).join(" · ");
-
-
-  
-
-
-
-  
 
   return (
     <>
@@ -527,8 +522,9 @@ export default function PatientRecords() {
               <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4, marginBottom: 8 }}>
                 {filterOrgan  && <FilterBadge label="organ_type" value={filterOrgan}  onClear={() => removeFilter("organ_type")} />}
                 {filterCase   && <FilterBadge label="case_label" value={filterCase}   onClear={() => removeFilter("case_label")} />}
+                {filterSource && <FilterBadge label="source"     value={filterSource} onClear={() => removeFilter("source")} />}
                 {filterPeriod && <FilterBadge label="period"     value={filterPeriod} onClear={() => removeFilter("period")} />}
-                {[filterOrgan, filterCase, filterPeriod].filter(Boolean).length > 1 && (
+                {[filterOrgan, filterCase, filterSource, filterPeriod].filter(Boolean).length > 1 && (
                   <button onClick={clearAllFilters} style={{ padding: "5px 12px", borderRadius: 20, border: "1.5px solid #fecaca", background: "#fef2f2", color: "#dc2626", fontSize: 12, fontWeight: 600, cursor: "pointer", marginBottom: 10 }}>
                     Clear all ×
                   </button>

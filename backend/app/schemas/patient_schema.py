@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator # type: ignore
 from typing import Optional, Union
 
 
@@ -48,7 +48,6 @@ class SampleRecordCreate(BaseModel):
     sequencing_partner: Optional[str] = None
     data_received: Optional[str] = None
     tmr_e: Optional[Union[float, str]] = None
-    old_gbp: Optional[Union[float, str]] = None
     gbp: Optional[Union[float, str]] = None
     data_analysed_som: Optional[str] = None
     data_analysed_germ: Optional[str] = None
@@ -63,21 +62,14 @@ class SampleRecordCreate(BaseModel):
     def parse_age(cls, v):
         if v == "" or v is None:
             return None
-        try:
-            return int(float(str(v)))
-        except:
-            return None
+        return str(v).strip()
 
-    @field_validator("tmr_e", "old_gbp", "gbp", mode="before")
+    @field_validator("tmr_e", "gbp", mode="before")
     @classmethod
     def parse_float(cls, v):
         if v == "" or v is None:
             return None
-        try:
-            return float(str(v))
-        except:
-            return None
-
+        return str(v).strip()
 
 class SampleRecordUpdate(SampleRecordCreate):
     pass
@@ -86,15 +78,12 @@ class SampleRecordUpdate(SampleRecordCreate):
 # ── PATIENT WITH SAMPLE (bulk upload / add patient page) ─────────────────────
 
 class PatientWithSampleCreate(BaseModel):
-    # Patient fields
     patient_id: str
     name: Optional[str] = None
     gender: Optional[str] = None
 
-    # Sample
     sid: Optional[str] = None
 
-    # Sample Record (includes former patient fields)
     aob_id: Optional[str] = None
     age: Optional[Union[int, str]] = None
     detail_disease: Optional[str] = None
@@ -115,7 +104,6 @@ class PatientWithSampleCreate(BaseModel):
     sequencing_partner: Optional[str] = None
     data_received: Optional[str] = None
     tmr_e: Optional[Union[float, str]] = None
-    old_gbp: Optional[Union[float, str]] = None
     gbp: Optional[Union[float, str]] = None
     data_analysed_som: Optional[str] = None
     data_analysed_germ: Optional[str] = None
@@ -135,7 +123,7 @@ class PatientWithSampleCreate(BaseModel):
         except:
             return None
 
-    @field_validator("tmr_e", "old_gbp", "gbp", mode="before")
+    @field_validator("tmr_e", "gbp", mode="before")
     @classmethod
     def parse_float(cls, v):
         if v == "" or v is None:
@@ -144,7 +132,6 @@ class PatientWithSampleCreate(BaseModel):
             return float(str(v))
         except:
             return None
-        
 
     @field_validator(
         "aob_id", "detail_disease", "organ_type", "comorbidity",
@@ -165,18 +152,14 @@ class PatientWithSampleCreate(BaseModel):
 
 
 class PatientWithSampleUpdate(BaseModel):
-    # Which sample/record to update
     sample_id: Optional[int] = None
     record_id: Optional[int] = None
 
-    # Patient fields
     name: Optional[str] = None
     gender: Optional[str] = None
 
-    # Sample
     sid: Optional[str] = None
 
-    # Sample Record (includes former patient fields)
     aob_id: Optional[str] = None
     age: Optional[Union[int, str]] = None
     detail_disease: Optional[str] = None
@@ -197,7 +180,6 @@ class PatientWithSampleUpdate(BaseModel):
     sequencing_partner: Optional[str] = None
     data_received: Optional[str] = None
     tmr_e: Optional[Union[float, str]] = None
-    old_gbp: Optional[Union[float, str]] = None
     gbp: Optional[Union[float, str]] = None
     data_analysed_som: Optional[str] = None
     data_analysed_germ: Optional[str] = None
@@ -217,7 +199,7 @@ class PatientWithSampleUpdate(BaseModel):
         except:
             return None
 
-    @field_validator("tmr_e", "old_gbp", "gbp", mode="before")
+    @field_validator("tmr_e", "gbp", mode="before")
     @classmethod
     def parse_float(cls, v):
         if v == "" or v is None:

@@ -9,3 +9,7 @@ python-dotenv
 alembic
 loguru
 psycopg2-binary
+tqdm
+openpyxl>=3.1
+tqdm>=4.65
+pymysql

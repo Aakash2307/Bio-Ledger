@@ -466,7 +466,6 @@ export default function ViewPatientPage() {
         sequencing_partner:     form.sequencing_partner || null,
         data_received:          form.data_received || null,
         tmr_e:                  form.tmr_e ? Number(form.tmr_e) : null,
-        old_gbp:                form.old_gbp ? Number(form.old_gbp) : null,
         gbp:                    form.gbp ? Number(form.gbp) : null,
         data_analysed_som:      form.data_analysed_som || null,
         data_analysed_germ:     form.data_analysed_germ || null,

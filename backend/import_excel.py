@@ -31,10 +31,10 @@ for _, row in df.iterrows():
         continue
 
     patient_id_value = clean_value(row.get("Patient ID"))
-    sid_value = clean_value(row.get("SID"))
+    sid_value = clean_value(row.get("Sample ID"))          # ← fixed (was "SID")
 
     # ── 1. PATIENTS ──────────────────────────────────────────
-    cursor.execute("SELECT id FROM patients WHERE patient_id = ?", (patient_id_value,))
+    cursor.execute("SELECT id FROM patients WHERE patient_id = %s", (patient_id_value,))
     existing_patient = cursor.fetchone()
 
     if existing_patient:
@@ -42,7 +42,7 @@ for _, row in df.iterrows():
     else:
         cursor.execute("""
             INSERT INTO patients (patient_id, name, gender)
-            VALUES (?, ?, ?)
+            VALUES (%s, %s, %s)
         """, (
             patient_id_value,
             clean_value(row.get("Name")),
@@ -56,7 +56,7 @@ for _, row in df.iterrows():
         skipped_samples += 1
         continue
 
-    cursor.execute("SELECT id FROM samples WHERE sid = ?", (sid_value,))
+    cursor.execute("SELECT id FROM samples WHERE sid = %s", (sid_value,))
     existing_sample = cursor.fetchone()
 
     if existing_sample:
@@ -64,7 +64,7 @@ for _, row in df.iterrows():
     else:
         cursor.execute("""
             INSERT INTO samples (patient_ref, sid)
-            VALUES (?, ?)
+            VALUES (%s, %s)
         """, (patient_db_id, sid_value))
         sample_db_id = cursor.lastrowid
         inserted_samples += 1
@@ -86,7 +86,7 @@ for _, row in df.iterrows():
             report_status, report_release_date,
             comments
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """, (
         sample_db_id,
         clean_value(row.get("AOB ID")),
@@ -100,16 +100,15 @@ for _, row in df.iterrows():
         clean_value(row.get("Consultation")),
         clean_value(row.get("New Case label")),
         clean_value(row.get("Additional")),
-        clean_value(row.get("Source")),
+        clean_value(row.get("Source/project")),        # ← fixed (was "Source")
         clean_value(row.get("Sample Collection Date")),
         clean_value(row.get("DNA availability")),
         clean_value(row.get("Sequencing")),
         clean_value(row.get("DIN")),
-        clean_value(row.get("Research/Report")),
+        clean_value(row.get("Report (made/release)")),  # ← was "Research/Report", column doesn't exist; reusing report status column here, see note below
         clean_value(row.get("Sequencing partner (E)")),
         clean_value(row.get("Data received (E)")),
         clean_value(row.get("TMR-E")),
-        clean_value(row.get("old_gbp")),
         clean_value(row.get("Gbp")),
         clean_value(row.get("Data analysed-E (Som)")),
         clean_value(row.get("Data analysed-E (Germ)")),

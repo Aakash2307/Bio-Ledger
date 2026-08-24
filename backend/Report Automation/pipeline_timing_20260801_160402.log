@@ -1,0 +1,294 @@
+2026-08-01 16:04:02 | PIPELINE START
+2026-08-01 16:04:02 | START: STEP 1: DATABASE INTEGRATION (run_all_pipeline.py)
+
+🧬 Germline → Somatic filtering (Location-based)
+
+📂 Germline files: ['4A1643_germline_4A1643_Germline_Results.xlsx']
+📂 Somatic files: ['4A1643_somatic_4A1643_Somatic_Results.xlsx']
+
+🔍 Sample: 4A1643
+📊 Before: 33690 | After: 18226 | Removed: 15464
+
+✅ Pre-filter completed
+
+
+🧬 Germline → Somatic filtering (Location-based)
+
+📂 Germline files: ['4A1643_germline_4A1643_Germline_Results.xlsx']
+📂 Somatic files: ['4A1643_somatic_4A1643_Somatic_Results.xlsx']
+
+🔍 Sample: 4A1643
+📊 Before: 33690 | After: 18226 | Removed: 15464
+
+✅ Pre-filter completed
+
+Reading liftover chains
+Mapping coordinates
+/home/ngs/Desktop/BioLedger/backend/Report Automation/Database_integrations_With_Filter V1/SOMATIC/Modules/cancer_hotspot.py:24: DtypeWarning: Columns (4,16,41,42,84,85,87,88,98,148) have mixed types. Specify dtype option on import or set low_memory=False.
+  hotspot_df = pd.read_csv(hotspot_path)
+
+==============================
+   SOMATIC MASTER STARTED     
+==============================
+
+▶ Processing sample: 4A1643_somatic_4A1643_Somatic_Results.xlsx
+   ▶ Running ClinGen
+   ▶ Running IntOGen
+   ▶ Running OncoKB
+   ▶ Running TCGA
+   ▶ Running Cancer_Hotspot
+   ▶ Running CIVIC
+✅ Output written: /home/ngs/Desktop/BioLedger/backend/Report Automation/Database_integrations_With_Filter V1/Output/somatic/4A1643/4A1643_somatic_4A1643_Somatic_Results_Integrated.xlsx
+
+==============================
+   🎉 ALL SAMPLES COMPLETED   
+==============================
+
+
+==============================
+   SOMAMUT FILTER STARTED     
+==============================
+
+✔ Somatic genes loaded: 1331
+✔ Disease gene sets loaded: 5
+
+✔ Sample file detected: /home/ngs/Desktop/BioLedger/backend/Report Automation/Database_integrations_With_Filter V1/Output/somatic/4A1643/4A1643_somatic_4A1643_Somatic_Results_Integrated.xlsx
+✔ Sheets found: ['Variations', 'ClinGen', 'IntOGen', 'OncoKB', 'TCGA', 'Cancer_Hotspot', 'Civic_accepted_and_submitted', 'Civic_Amplification', 'Civic_SNP', 'Run_Summary']
+✔ Reference CSV files found: 38
+⏳ Indexing reference variants...
+Processing reference CSVs:   0%|          | 0/38 [00:00<?, ?it/s]Processing reference CSVs:   8%|▊         | 3/38 [00:00<00:02, 14.10it/s]Processing reference CSVs:  21%|██        | 8/38 [00:00<00:01, 27.75it/s]Processing reference CSVs:  32%|███▏      | 12/38 [00:00<00:01, 18.68it/s]Processing reference CSVs:  39%|███▉      | 15/38 [00:00<00:01, 17.96it/s]Processing reference CSVs:  47%|████▋     | 18/38 [00:01<00:01, 13.69it/s]Processing reference CSVs:  55%|█████▌    | 21/38 [00:02<00:02,  5.94it/s]Processing reference CSVs:  61%|██████    | 23/38 [00:02<00:02,  6.74it/s]Processing reference CSVs:  66%|██████▌   | 25/38 [00:02<00:01,  7.80it/s]Processing reference CSVs:  71%|███████   | 27/38 [00:02<00:01,  9.02it/s]Processing reference CSVs:  82%|████████▏ | 31/38 [00:03<00:00,  7.98it/s]Processing reference CSVs:  97%|█████████▋| 37/38 [00:03<00:00, 13.61it/s]Processing reference CSVs: 100%|██████████| 38/38 [00:04<00:00,  8.57it/s]
+✔ Total reference variants indexed: 3989158
+
+🔍 Processing sheet: Variations
+✔ Variations | Before: 18226 | After: 18148
+
+🔍 Processing sheet: ClinGen
+
+🔍 Processing sheet: IntOGen
+✔ IntOGen | Before: 62 | After: 62
+
+🔍 Processing sheet: OncoKB
+
+🔍 Processing sheet: TCGA
+✔ TCGA | Before: 70 | After: 69
+
+🔍 Processing sheet: Cancer_Hotspot
+✔ Cancer_Hotspot | Before: 128 | After: 125
+
+🔍 Processing sheet: Civic_accepted_and_submitted
+✔ Civic_accepted_and_submitted | Before: 1 | After: 1
+
+🔍 Processing sheet: Civic_Amplification
+✔ Civic_Amplification | Before: 0 | After: 0
+
+🔍 Processing sheet: Civic_SNP
+✔ Civic_SNP | Before: 1 | After: 1
+
+🔍 Processing sheet: Run_Summary
+
+📝 Updating Run_Summary
+📊 Total Before   : 262
+📊 Total After    : 258
+📊 Total Excluded : 4
+
+🎉 DONE: /home/ngs/Desktop/BioLedger/backend/Report Automation/Database_integrations_With_Filter V1/Output/somatic/4A1643/4A1643_somatic_4A1643_Somatic_Results_Integrated_Somamut.xlsx
+🎨 Applying somatic highlighting (ALL sheets)...
+🎨 Applying disease highlighting ONLY on Variations...
+Applying the filters
+
+🔽 STARTING POST-FILTER FUNNEL
+   🔻 Filter 1: CADD_PHRED > 20
+   🔻 Filter 2: Tumor_AF<=0.38
+   🔻 Filter 3 : AF Filter <= 0.001 (with missing values kept)
+⚠️ AF column missing in sheet: ClinGen
+⚠️ AF column missing in sheet: OncoKB
+⚠️ AF column missing in sheet: Cancer_Hotspot
+✅ ALL FILTERS APPLIED
+
+🔄 Restoring original Variations sheet for sample 4A1643...
+✔ Restored original (pre-filter) Variations sheet from: /home/ngs/Desktop/BioLedger/backend/Report Automation/Database_integrations_With_Filter V1/Input/somatic/4A1643_somatic_4A1643_Somatic_Results.xlsx
+
+==============================
+   SOMAMUT COMPLETED          
+==============================
+
+
+==============================
+  FULL SOMATIC PIPELINE RUN   
+==============================
+
+▶ Step 0: Germline → Somatic Pre-filter
+
+
+🔍 Checking somatic_clean folder...
+
+📁 Files found: ['4A1643_somatic_4A1643_Somatic_Results.xlsx']
+
+▶ Step 1: All Database Integration
+
+
+▶ Step 2: Somamut Filtering
+
+
+==============================
+ 🎉 SOMATIC PIPELINE COMPLETED 
+==============================
+
+2026-08-01 16:09:17,065 - INFO - Loading disease gene sets...
+2026-08-01 16:09:17,119 - INFO - Detected disease columns: ['Unique (Somatic) - 1332 genes', 'Hereditary (germline) - 158 genes', 'Cardiac - 565 genes', 'Diabetes_pharmgkb_mito genes - 318 genes', 'NDD - 890 genes', 'Endometriosis - 53 genes', 'Neurodevelopmental - 1733 genes']
+2026-08-01 16:09:17,120 - INFO - Unique (Somatic) - 1332 genes -> 1331 genes loaded
+2026-08-01 16:09:17,120 - INFO - Hereditary (germline) - 158 genes -> 158 genes loaded
+2026-08-01 16:09:17,120 - INFO - Cardiac - 565 genes -> 565 genes loaded
+2026-08-01 16:09:17,120 - INFO - Diabetes_pharmgkb_mito genes - 318 genes -> 318 genes loaded
+2026-08-01 16:09:17,121 - INFO - NDD - 890 genes -> 889 genes loaded
+2026-08-01 16:09:17,121 - INFO - Endometriosis - 53 genes -> 56 genes loaded
+2026-08-01 16:09:17,121 - INFO - Neurodevelopmental - 1733 genes -> 1733 genes loaded
+✔ ClinGen loaded: 9745 rows
+✔ Disease gene sets loaded: 7
+Processing files:   0%|          | 0/1 [00:00<?, ?it/s]2026-08-01 16:11:42,062 - INFO - Reverse mapping built for 3737 genes
+2026-08-01 16:11:42,062 - INFO - Source sheets found: ['CS_Pathogenic', 'uncertain_significance', 'Others']
+2026-08-01 16:11:42,062 - INFO - Processing disease: Unique (Somatic) - 1332 genes
+2026-08-01 16:11:42,064 - INFO - CS_Pathogenic -> 1 rows matched
+2026-08-01 16:11:42,071 - INFO - uncertain_significance -> 25 rows matched
+2026-08-01 16:11:46,122 - INFO - Others -> 7174 rows matched
+2026-08-01 16:11:47,625 - INFO - Written sheet: Unique_(Somatic)_1332_genes
+2026-08-01 16:11:49,332 - INFO - Processing disease: Hereditary (germline) - 158 genes
+2026-08-01 16:11:49,356 - INFO - uncertain_significance -> 5 rows matched
+2026-08-01 16:11:53,455 - INFO - Others -> 307 rows matched
+2026-08-01 16:11:53,527 - INFO - Written sheet: Hereditary_(germline)_158_genes
+2026-08-01 16:11:53,597 - INFO - Processing disease: Cardiac - 565 genes
+2026-08-01 16:11:53,619 - INFO - uncertain_significance -> 21 rows matched
+2026-08-01 16:11:57,733 - INFO - Others -> 1177 rows matched
+2026-08-01 16:11:57,989 - INFO - Written sheet: Cardiac_565_genes
+2026-08-01 16:11:58,255 - INFO - Processing disease: Diabetes_pharmgkb_mito genes - 318 genes
+2026-08-01 16:11:58,278 - INFO - uncertain_significance -> 10 rows matched
+2026-08-01 16:12:02,334 - INFO - Others -> 1355 rows matched
+2026-08-01 16:12:02,624 - INFO - Written sheet: Diabetes_pharmgkb_mito_genes_31
+2026-08-01 16:12:02,933 - INFO - Processing disease: NDD - 890 genes
+2026-08-01 16:12:02,955 - INFO - uncertain_significance -> 32 rows matched
+2026-08-01 16:12:07,044 - INFO - Others -> 2026 rows matched
+2026-08-01 16:12:07,479 - INFO - Written sheet: NDD_890_genes
+2026-08-01 16:12:07,953 - INFO - Processing disease: Endometriosis - 53 genes
+2026-08-01 16:12:07,975 - INFO - uncertain_significance -> 2 rows matched
+2026-08-01 16:12:12,019 - INFO - Others -> 380 rows matched
+2026-08-01 16:12:12,103 - INFO - Written sheet: Endometriosis_53_genes
+2026-08-01 16:12:12,187 - INFO - Processing disease: Neurodevelopmental - 1733 genes
+2026-08-01 16:12:12,209 - INFO - uncertain_significance -> 41 rows matched
+2026-08-01 16:12:16,306 - INFO - Others -> 8420 rows matched
+2026-08-01 16:12:18,088 - INFO - Written sheet: Neurodevelopmental_1733_genes
+2026-08-01 16:12:20,066 - INFO - Disease sheet generation completed.
+Processing files: 100%|██████████| 1/1 [04:51<00:00, 291.91s/it]Processing files: 100%|██████████| 1/1 [04:51<00:00, 291.91s/it]
+✔ ALL FILES PROCESSED
+
+==============================
+  GERMLINE PIPELINE RUN       
+==============================
+
+==============================
+ ✅ GERMLINE COMPLETED        
+==============================
+
+
+📁 Target directory locked: /home/ngs/Desktop/BioLedger/backend/Report Automation/Database_integrations_With_Filter V1/Output/somatic
+
+📂 Processing: /home/ngs/Desktop/BioLedger/backend/Report Automation/Database_integrations_With_Filter V1/Output/somatic/4A1643
+✅ Moving: 4A1643_somatic_4A1643_Somatic_Results_Integrated_Somamut.xlsx → /home/ngs/Desktop/BioLedger/backend/Report Automation/Database_integrations_With_Filter V1/Output/somatic/4A1643_somatic_4A1643_Somatic_Results_Integrated_Somamut.xlsx
+🗑 Deleting: 4A1643_somatic_4A1643_Somatic_Results_Integrated.xlsx
+🧹 Removing empty folder: /home/ngs/Desktop/BioLedger/backend/Report Automation/Database_integrations_With_Filter V1/Output/somatic/4A1643
+
+🎉 Extraction + Cleanup completed!
+
+===================================
+     FULL PIPELINE STARTED          
+===================================
+
+🕒 Start Time: 2026-08-01 16:04:02
+
+🔧 Running Germline → Somatic RSID filtering...
+
+📂 Checking cleaned somatic folder: /home/ngs/Desktop/BioLedger/backend/Report Automation/Database_integrations_With_Filter V1/Input/somatic_clean
+▶ Running Somatic Pipeline
+
+
+▶ Running Germline Pipeline
+
+
+▶ Cleaning Excel Files from the somatic folders
+
+
+===================================
+ 🎉 FULL PIPELINE COMPLETED         
+===================================
+
+🕒 End Time: 2026-08-01 16:14:15
+⏱ Total Time: 0:10:13.474669
+
+2026-08-01 16:14:15 | END:   STEP 1: DATABASE INTEGRATION (run_all_pipeline.py)  (took 613s)
+2026-08-01 16:14:15 | Germline files: 1 | Somatic files: 1
+2026-08-01 16:14:15 | START: STEP 2: COPY GERMLINE & SOMATIC
+2026-08-01 16:14:16 | END:   STEP 2: COPY GERMLINE & SOMATIC  (took 1s)
+2026-08-01 16:14:16 | START: STEP 3: PRS PROCESSING (run_prs.py)
+
+Processing: 4A1643_prs_4A1643_Merged.xlsx
+Rows after OR filter: 119
+Saved: 4A1643_prs_4A1643_trait_processed.xlsx
+Unmatched rows: 95
+2026-08-01 16:14:16 | END:   STEP 3: PRS PROCESSING (run_prs.py)  (took 0s)
+2026-08-01 16:14:16 | START: STEP 4: COPY SNP OUTPUT
+2026-08-01 16:14:16 | END:   STEP 4: COPY SNP OUTPUT  (took 0s)
+2026-08-01 16:14:16 | START: STEP 5: REPORT GENERATION (final_report.py)
+
+=======================================================
+  TZAR Labs — Unified Variant Report Generator
+=======================================================
+
+  Input    : input/somatic  +  input/germline
+  Template : new_report_template.docx
+  Output   : output
+
+Detected 1 sample(s): 4A1643
+
+───────────────────────────────────────────────────────
+  Sample: 4A1643
+  Somatic  : 4A1643_somatic_4A1643_Somatic_Results_Integrated_Somamut.xlsx
+  Germline : 4A1643_germline_4A1643_Germline_Results_FINAL.xlsx
+  Trait    : 4A1643_prs_4A1643_trait_processed.xlsx
+
+  Loading somatic variants...
+    [IntOGen] 5 variants
+    [TCGA] 5 variants
+    [Cancer_Hotspot] 2 variants
+    [Civic_accepted_and_submitted] 0 variants
+    [Civic_Amplification] 0 variants
+    [Civic_SNP] 0 variants
+  Total somatic variants: 12
+  ✓ Somatic table filled — 12 rows
+
+  Loading germline variants...
+    [CS_Pathogenic] 6 variants
+    [Hereditary_(germline)_158_genes] 0 CS_Pathogenic rows
+    [Cardiac_565_genes] 0 CS_Pathogenic rows
+    [Diabetes_pharmgkb_mito_genes_31] 0 CS_Pathogenic rows
+    [NDD_890_genes] 0 CS_Pathogenic rows
+    [Endometriosis_53_genes] 0 CS_Pathogenic rows
+    [Neurodevelopmental_1733_genes] 0 CS_Pathogenic rows
+  Total germline variants (after dedup): 6
+  ✓ Germline table filled — 6 variants (12 rows)
+
+  Loading SNP variants...
+    [skip] Cardiac — empty
+    [Diabetes] top rsID=rs2237895, PRS=1.2365, Trait='Type 2 Diabetes Mellitus'
+    [skip] NDD — empty
+    [skip] ND — empty
+    [Asthma] top rsID=rs11078927, PRS=1.2329, Trait='Asthma'
+  Total SNP variants: 2
+  ✓ SNP table filled — 2 variants (4 rows)
+
+  ✓ Saved → output/4A1643_Report.docx
+
+=======================================================
+  Done. Reports saved to: output/
+=======================================================
+
+2026-08-01 16:22:06 | END:   STEP 5: REPORT GENERATION (final_report.py)  (took 470s)
+2026-08-01 16:22:06 | PIPELINE COMPLETE - Total time: 1084s

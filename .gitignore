@@ -26,3 +26,20 @@ backend/Report Automation/Database_integrations_With_Filter V1/Somatic and germl
 
 backend/Report Automation/new_report_template.docx
 
+
+backend/**/*.docx
+
+
+
+backend/**/*.pdf
+backend/Report Automation/Final_Report/venv
+
+backend/Report Automation/Database_integrations_With_Filter V1/SOMATIC/Databases
+
+backend/**/*.txt
+backend/Report Automation/Database_integrations_With_Filter V1/SOMATIC/Resources
+
+
+
+
+

@@ -4,12 +4,10 @@ import DashboardHeader       from "../components/DashboardHeader";
 import StatCardsRow          from "../components/StatCardsRow";
 import CaseDistributionChart from "../components/CaseDistributionChart";
 import RecentActivity        from "../components/RecentActivity";
-import { getDashboardSummary } from "../api";
+import { getDashboardSummary , getReportStats } from "../api";
 // import OrganDistributionChart from "../components/OrganDistributionChart";
 import OrganCaseBreakdownChart from "../components/OrganCaseBreakdownChart";
-
-
-// replace the two <OrganDistributionChart .../> with:
+import SourceDistributionChart from "../components/SourceDistributionChart"; // ← NEW
 
 import logo from "../assets/tzarnewlogo.png";
 
@@ -21,6 +19,11 @@ const CHART_COLORS = [
 const ORGAN_COLORS = [
   "#F4845F", "#2EC4B6", "#8B72BE", "#4A90D9",
   "#3BBFB2", "#E8A838", "#4CAF82", "#D95B5B",
+];
+
+const SOURCE_COLORS = [ // ← NEW
+  "#8B72BE", "#4A90D9", "#2EC4B6", "#E8A838",
+  "#F4845F", "#4CAF82", "#3BBFB2", "#D95B5B",
 ];
 
 const DEFAULT_ACTIVITIES = [
@@ -36,6 +39,7 @@ export default function Dashboard() {
   const [selectedYear, setSelectedYear]   = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
   const [summary, setSummary]             = useState(null);
+  const [reportStats, setReportStats]       = useState(true);
   const [loading, setLoading]             = useState(true);
   const [error, setError]                 = useState(null);
   const navigate                          = useNavigate();
@@ -50,34 +54,47 @@ export default function Dashboard() {
     load();
   }, [period]);
 
+  useEffect(() => {
+  async function load() {
+    setLoading(true); setError(null);
+    try {
+      const [summaryData, reportStatsData] = await Promise.all([
+        getDashboardSummary(period),
+        getReportStats(),
+      ]);
+      setSummary(summaryData);
+      setReportStats(reportStatsData);
+    }
+    catch (err) { console.error(err); setError("Failed to load dashboard data."); }
+    finally { setLoading(false); }
+  }
+  load();
+  }, [period]);
+
   const stats = [
     {
       title:   "Total Patients",
       value:   loading ? "—" : (summary?.total_patients ?? "—").toLocaleString(),
       sub:     loading ? "Loading…" : `${summary?.total_patients ?? 0} registered`,
       icon:    "👥",
-      // onClick: () => navigate("/patients"),         // ← navigates to all patients
     },
     {
       title:   "Total Samples",
       value:   loading ? "—" : (summary?.total_samples ?? "—").toLocaleString(),
       sub:     loading ? "Loading…" : `${summary?.total_samples ?? 0} across all patients`,
       icon:    "🧬",
-      // onClick: () => navigate(period !== "all" ? `/patients?period=${period}` : "/patients"),          // ← navigates to patients (samples live there)
     },
     {
       title: "Sequenced Samples",
       value: loading ? "—" : (summary?.sequenced_samples ?? "—").toLocaleString(),
       sub:   loading ? "Loading…" : `of ${summary?.total_samples ?? 0} total samples`,
       icon:  "⚡",
-      // onClick: () => navigate(period !== "all" ? `/patients?case_label=Done&period=${period}` : "/patients?case_label=Done"),
     },
     {
       title: "Total Reports Generated",
-      value: "0",
-      sub:   "Yet to start",
+      value: loading ? "—" : (reportStats?.total_completed ?? "—").toLocaleString(),
+      sub:   loading ? "Loading…" : `${reportStats?.total_completed ?? 0} generated`,
       icon:  "📈",
-      // no onClick — not clickable
     },
   ];
 
@@ -110,6 +127,17 @@ export default function Dashboard() {
         .map(([name, value], i) => {
           const total = Object.values(summary.benign_organ_counts).reduce((a, b) => a + b, 0);
           return { name, value, percent: total > 0 ? `${((value / total) * 100).toFixed(1)}%` : "0%", color: ORGAN_COLORS[i % ORGAN_COLORS.length] };
+        })
+        .sort((a, b) => b.value - a.value)
+    : [];
+
+  // ── Source distribution ── ← NEW
+  const sourceData = summary?.source_counts
+    ? Object.entries(summary.source_counts)
+        .filter(([name]) => name && name !== "null")
+        .map(([name, value], i) => {
+          const total = Object.values(summary.source_counts).reduce((a, b) => a + b, 0);
+          return { name, value, percent: total > 0 ? `${((value / total) * 100).toFixed(1)}%` : "0%", color: SOURCE_COLORS[i % SOURCE_COLORS.length] };
         })
         .sort((a, b) => b.value - a.value)
     : [];
@@ -193,24 +221,19 @@ export default function Dashboard() {
          data={caseData.length > 0 ? caseData : undefined} 
          period={period}
         />
-        {/* <OrganDistributionChart
-          data={organData.length > 0 ? organData : undefined}
-          title="Organ Type Distribution"
-          filterKey="organ_type"
-          period={period}
-        />
-        <OrganDistributionChart
-          data={benignData.length > 0 ? benignData : undefined}
-          title="Benign Organ Distribution"
-          filterKey="organ_type"
-          period={period}
-        /> */}
 
         <OrganCaseBreakdownChart summary={summary} period={period} />
-
-        {/* <OrganDrilldownChart summary={summary} period={period} /> */}
-        {/* <RecentActivity activities={DEFAULT_ACTIVITIES} /> */}
       </div>
+
+      <div style={{ marginTop: 20 }}>
+        <SourceDistributionChart
+          data={sourceData.length > 0 ? sourceData : undefined}
+          title="Sample Source Distribution"
+          filterKey="source"
+          period={period} 
+        />
+      </div>
+      
 
     </div>
   );

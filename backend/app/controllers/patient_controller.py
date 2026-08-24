@@ -31,20 +31,20 @@ def get_patient_by_id(patient_id: int):
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT * FROM patients WHERE id = ?", (patient_id,))
+    cursor.execute("SELECT * FROM patients WHERE id = %s", (patient_id,))
     patient = cursor.fetchone()
 
     if not patient:
         conn.close()
         raise HTTPException(status_code=404, detail="Patient not found")
 
-    cursor.execute("SELECT * FROM samples WHERE patient_ref = ?", (patient_id,))
+    cursor.execute("SELECT * FROM samples WHERE patient_ref = %s", (patient_id,))
     samples = cursor.fetchall()
 
     sample_list = []
     for sample in samples:
         cursor.execute(
-            "SELECT * FROM sample_records WHERE sample_ref = ?", (sample["id"],)
+            "SELECT * FROM sample_records WHERE sample_ref = %s", (sample["id"],)
         )
         records = cursor.fetchall()
         sample_list.append({
@@ -66,7 +66,7 @@ def create_patient(patient: PatientCreate):
     try:
         cursor.execute("""
             INSERT INTO patients (patient_id, name, gender)
-            VALUES (?, ?, ?)
+            VALUES (%s, %s, %s)
         """, (
             patient.patient_id,
             patient.name,
@@ -86,15 +86,15 @@ def update_patient(patient_id: int, data: PatientUpdate):
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT id FROM patients WHERE id = ?", (patient_id,))
+    cursor.execute("SELECT id FROM patients WHERE id = %s", (patient_id,))
     if not cursor.fetchone():
         conn.close()
         raise HTTPException(status_code=404, detail="Patient not found")
 
     cursor.execute("""
         UPDATE patients SET
-            name = ?, gender = ?
-        WHERE id = ?
+            name = %s, gender = %s
+        WHERE id = %s
     """, (
         data.name, data.gender,
         patient_id,
@@ -102,7 +102,7 @@ def update_patient(patient_id: int, data: PatientUpdate):
 
     conn.commit()
 
-    cursor.execute("SELECT * FROM patients WHERE id = ?", (patient_id,))
+    cursor.execute("SELECT * FROM patients WHERE id = %s", (patient_id,))
     updated = dict(cursor.fetchone())
     conn.close()
     return {"patient": updated}
@@ -112,12 +112,12 @@ def delete_patient(patient_id: int):
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT id FROM patients WHERE id = ?", (patient_id,))
+    cursor.execute("SELECT id FROM patients WHERE id = %s", (patient_id,))
     if not cursor.fetchone():
         conn.close()
         raise HTTPException(status_code=404, detail="Patient not found")
 
-    cursor.execute("DELETE FROM patients WHERE id = ?", (patient_id,))
+    cursor.execute("DELETE FROM patients WHERE id = %s", (patient_id,))
     conn.commit()
     conn.close()
     return {"message": "Patient deleted successfully"}
@@ -128,10 +128,9 @@ def create_patient_with_sample(data: PatientWithSampleCreate):
     cursor = conn.cursor()
 
     try:
-        # ── 1. Insert Patient ─────────────────────────────────────────────────
         cursor.execute("""
             INSERT INTO patients (patient_id, name, gender)
-            VALUES (?, ?, ?)
+            VALUES (%s, %s, %s)
         """, (
             data.patient_id,
             data.name,
@@ -139,16 +138,14 @@ def create_patient_with_sample(data: PatientWithSampleCreate):
         ))
         patient_db_id = cursor.lastrowid
 
-        # ── 2. Insert Sample (SID) — only if SID provided ────────────────────
         sample_db_id = None
         if data.sid:
             cursor.execute(
-                "INSERT INTO samples (patient_ref, sid) VALUES (?, ?)",
+                "INSERT INTO samples (patient_ref, sid) VALUES (%s, %s)",
                 (patient_db_id, data.sid)
             )
             sample_db_id = cursor.lastrowid
 
-        # ── 3. Insert Sample Record — only if sample was created ──────────────
         if sample_db_id:
             cursor.execute("""
                 INSERT INTO sample_records (
@@ -160,12 +157,12 @@ def create_patient_with_sample(data: PatientWithSampleCreate):
                     sample_collection_date, dna_availability,
                     sequencing, din, research_report,
                     sequencing_partner, data_received,
-                    tmr_e, old_gbp, gbp,
+                    tmr_e, gbp,
                     data_analysed_som, data_analysed_germ,
                     sample_labeling, analysis,
                     report_status, report_release_date, comments
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 sample_db_id,
                 data.aob_id, data.age, data.detail_disease, data.organ_type,
@@ -175,7 +172,7 @@ def create_patient_with_sample(data: PatientWithSampleCreate):
                 data.sample_collection_date, data.dna_availability,
                 data.sequencing, data.din, data.research_report,
                 data.sequencing_partner, normalize_date(data.data_received),
-                data.tmr_e, data.old_gbp, data.gbp,
+                data.tmr_e, data.gbp,
                 data.data_analysed_som, data.data_analysed_germ,
                 data.sample_labeling, data.analysis,
                 data.report_status, data.report_release_date, data.comments,
@@ -201,58 +198,54 @@ def update_patient_with_sample(patient_id: int, data: PatientWithSampleUpdate):
     cursor = conn.cursor()
 
     try:
-        # ── 1. Check patient exists ───────────────────────────────────────────
-        cursor.execute("SELECT id FROM patients WHERE id = ?", (patient_id,))
+        cursor.execute("SELECT id FROM patients WHERE id = %s", (patient_id,))
         if not cursor.fetchone():
             conn.close()
             raise HTTPException(status_code=404, detail="Patient not found")
 
-        # ── 2. Update patient ─────────────────────────────────────────────────
         cursor.execute("""
             UPDATE patients SET
-                name = ?, gender = ?
-            WHERE id = ?
+                name = %s, gender = %s
+            WHERE id = %s
         """, (
             data.name, data.gender,
             patient_id,
         ))
 
-        # ── 3. Update sample SID if sample_id provided ────────────────────────
         if data.sample_id and data.sid:
             cursor.execute(
-                "SELECT id FROM samples WHERE id = ? AND patient_ref = ?",
+                "SELECT id FROM samples WHERE id = %s AND patient_ref = %s",
                 (data.sample_id, patient_id)
             )
             if not cursor.fetchone():
                 raise HTTPException(status_code=404, detail="Sample not found for this patient")
 
             cursor.execute(
-                "UPDATE samples SET sid = ? WHERE id = ?",
+                "UPDATE samples SET sid = %s WHERE id = %s",
                 (data.sid, data.sample_id)
             )
 
-        # ── 4. Update sample record if record_id provided ─────────────────────
         if data.record_id:
             cursor.execute(
-                "SELECT id FROM sample_records WHERE id = ?", (data.record_id,)
+                "SELECT id FROM sample_records WHERE id = %s", (data.record_id,)
             )
             if not cursor.fetchone():
                 raise HTTPException(status_code=404, detail="Sample record not found")
 
             cursor.execute("""
                 UPDATE sample_records SET
-                    aob_id = ?, age = ?, detail_disease = ?, organ_type = ?,
-                    comorbidity = ?, family_history = ?, metastasis = ?,
-                    patient_status = ?, consultation = ?,
-                    new_case_label = ?, additional = ?, source = ?,
-                    sample_collection_date = ?, dna_availability = ?,
-                    sequencing = ?, din = ?, research_report = ?,
-                    sequencing_partner = ?, data_received = ?,
-                    tmr_e = ?, old_gbp = ?, gbp = ?,
-                    data_analysed_som = ?, data_analysed_germ = ?,
-                    sample_labeling = ?, analysis = ?,
-                    report_status = ?, report_release_date = ?, comments = ?
-                WHERE id = ?
+                    aob_id = %s, age = %s, detail_disease = %s, organ_type = %s,
+                    comorbidity = %s, family_history = %s, metastasis = %s,
+                    patient_status = %s, consultation = %s,
+                    new_case_label = %s, additional = %s, source = %s,
+                    sample_collection_date = %s, dna_availability = %s,
+                    sequencing = %s, din = %s, research_report = %s,
+                    sequencing_partner = %s, data_received = %s,
+                    tmr_e = %s, gbp = %s,
+                    data_analysed_som = %s, data_analysed_germ = %s,
+                    sample_labeling = %s, analysis = %s,
+                    report_status = %s, report_release_date = %s, comments = %s
+                WHERE id = %s
             """, (
                 data.aob_id, data.age, data.detail_disease, data.organ_type,
                 data.comorbidity, data.family_history, data.metastasis,
@@ -261,7 +254,7 @@ def update_patient_with_sample(patient_id: int, data: PatientWithSampleUpdate):
                 data.sample_collection_date, data.dna_availability,
                 data.sequencing, data.din, data.research_report,
                 data.sequencing_partner, normalize_date(data.data_received),
-                data.tmr_e, data.old_gbp, data.gbp,
+                data.tmr_e, data.gbp,
                 data.data_analysed_som, data.data_analysed_germ,
                 data.sample_labeling, data.analysis,
                 data.report_status, data.report_release_date, data.comments,
@@ -270,17 +263,16 @@ def update_patient_with_sample(patient_id: int, data: PatientWithSampleUpdate):
 
         conn.commit()
 
-        # ── 5. Return updated full record ─────────────────────────────────────
-        cursor.execute("SELECT * FROM patients WHERE id = ?", (patient_id,))
+        cursor.execute("SELECT * FROM patients WHERE id = %s", (patient_id,))
         updated_patient = dict(cursor.fetchone())
 
-        cursor.execute("SELECT * FROM samples WHERE patient_ref = ?", (patient_id,))
+        cursor.execute("SELECT * FROM samples WHERE patient_ref = %s", (patient_id,))
         samples = cursor.fetchall()
 
         sample_list = []
         for sample in samples:
             cursor.execute(
-                "SELECT * FROM sample_records WHERE sample_ref = ?", (sample["id"],)
+                "SELECT * FROM sample_records WHERE sample_ref = %s", (sample["id"],)
             )
             records = cursor.fetchall()
             sample_list.append({
@@ -300,13 +292,12 @@ def update_patient_with_sample(patient_id: int, data: PatientWithSampleUpdate):
         conn.rollback()
         conn.close()
         raise HTTPException(status_code=400, detail=str(e))
-    
 
 
 def get_patient_by_patient_id(patient_id: str):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM patients WHERE patient_id = ?", (patient_id,))
+    cursor.execute("SELECT * FROM patients WHERE patient_id = %s", (patient_id,))
     patient = cursor.fetchone()
     conn.close()
     if not patient:
@@ -318,19 +309,19 @@ def add_sample_to_patient(patient_id: int, data: PatientWithSampleCreate):
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT id FROM patients WHERE id = ?", (patient_id,))
+    cursor.execute("SELECT id FROM patients WHERE id = %s", (patient_id,))
     if not cursor.fetchone():
         conn.close()
         raise HTTPException(status_code=404, detail="Patient not found")
 
     try:
         cursor.execute(
-            "INSERT INTO samples (patient_ref, sid) VALUES (?, ?)",
+            "INSERT INTO samples (patient_ref, sid) VALUES (%s, %s)",
             (patient_id, data.sid)
         )
         sample_db_id = cursor.lastrowid
         print(f"✅ Sample inserted: {sample_db_id}")
-        print(f"📦 Data received: {data.dict()}")  # ← shows ALL fields coming in
+        print(f"📦 Data received: {data.dict()}")
 
         cursor.execute("""
             INSERT INTO sample_records (
@@ -341,11 +332,11 @@ def add_sample_to_patient(patient_id: int, data: PatientWithSampleCreate):
                 sample_collection_date, dna_availability,
                 sequencing, din, research_report,
                 sequencing_partner, data_received,
-                tmr_e, old_gbp, gbp,
+                tmr_e, gbp,
                 data_analysed_som, data_analysed_germ,
                 sample_labeling, analysis,
                 report_status, report_release_date, comments
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             sample_db_id,
             data.aob_id, data.age, data.detail_disease, data.organ_type,
@@ -355,7 +346,7 @@ def add_sample_to_patient(patient_id: int, data: PatientWithSampleCreate):
             data.sample_collection_date, data.dna_availability,
             data.sequencing, data.din, data.research_report,
             data.sequencing_partner, normalize_date(data.data_received),
-            data.tmr_e, data.old_gbp, data.gbp,
+            data.tmr_e, data.gbp,
             data.data_analysed_som, data.data_analysed_germ,
             data.sample_labeling, data.analysis,
             data.report_status, data.report_release_date, data.comments,
@@ -366,7 +357,7 @@ def add_sample_to_patient(patient_id: int, data: PatientWithSampleCreate):
     except Exception as e:
         conn.rollback()
         conn.close()
-        print(f"❌ ERROR: {e}")  # ← shows exact SQL error
+        print(f"❌ ERROR: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
     conn.close()

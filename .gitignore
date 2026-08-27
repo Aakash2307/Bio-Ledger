@@ -32,7 +32,7 @@ backend/**/*.docx
 
 
 backend/**/*.pdf
-backend/Report Automation/Final_Report/venv
+backend/Report Automation/Final_Report/venv/
 
 backend/Report Automation/Database_integrations_With_Filter V1/SOMATIC/Databases
 

@@ -7,39 +7,39 @@ import { deletePatient as deletePatientApi, deleteSample as deleteSampleApi } fr
 
 // ─── Column Definitions ───────────────────────────────────────────────────────
 const COLUMN_DEFS = [
-  { excel: "AOB ID",                       db: "aob_id",                 bucket: "record"  },
-  { excel: "Sample ID",                    db: "sid",                    bucket: "sample"  },
-  { excel: "Name",                         db: "name",                   bucket: "patient" },
-  { excel: "Age",                          db: "age",                    bucket: "record"  },
-  { excel: "Gender",                       db: "gender",                 bucket: "patient" },
-  { excel: "Patient ID",                   db: "patient_id",             bucket: "patient" },
-  { excel: "New Case label",               db: "new_case_label",         bucket: "record"  },
-  { excel: "Additional",                   db: "additional",             bucket: "record"  },
-  { excel: "Source",                       db: "source",                 bucket: "record"  },
-  { excel: "Detail Disease",               db: "detail_disease",         bucket: "record"  },
-  { excel: "Organ Type",                   db: "organ_type",             bucket: "record"  },
-  { excel: "Comorbidity",                  db: "comorbidity",            bucket: "record"  },
-  { excel: "Family history",               db: "family_history",         bucket: "record"  },
-  { excel: "Metastasis",                   db: "metastasis",             bucket: "record"  },
-  { excel: "Patient status",               db: "patient_status",         bucket: "record"  },
-  { excel: "Sample Collection Date",       db: "sample_collection_date", bucket: "record"  },
-  { excel: "DNA availability",             db: "dna_availability",       bucket: "record"  },
-  { excel: "Sequencing",                   db: "sequencing",             bucket: "record"  },
-  { excel: "DIN",                          db: "din",                    bucket: "record"  },
-  { excel: "Research/Report",              db: "research_report",        bucket: "record"  },
-  { excel: "Sequencing partner (E)",       db: "sequencing_partner",     bucket: "record"  },
-  { excel: "Data received (E)",            db: "data_received",          bucket: "record"  },
-  { excel: "TMR-EGbp",                     db: "tmr_e",                  bucket: "record"  },
-  { excel: "Old Gbp",                      db: "old_gbp",                bucket: "record"  },
-  { excel: "Gbp",                          db: "gbp",                    bucket: "record"  },
-  { excel: "Data analysed-E (Som)",        db: "data_analysed_som",      bucket: "record"  },
-  { excel: "Data analysed-E (Germ)",       db: "data_analysed_germ",     bucket: "record"  },
-  { excel: "Sample labeling",              db: "sample_labeling",        bucket: "record"  },
-  { excel: "Analysis",                     db: "analysis",               bucket: "record"  },
-  { excel: "Report (made/release)",        db: "report_status",          bucket: "record"  },
-  { excel: "Report Release Date",          db: "report_release_date",    bucket: "record"  },
-  { excel: "Comments (report sample ID)",  db: "comments",               bucket: "record"  },
-  { excel: "Consultation",                 db: "consultation",           bucket: "record"  },
+  { excel: "AOB ID", db: "aob_id", bucket: "record" },
+  { excel: "Sample ID", db: "sid", bucket: "sample" },
+  { excel: "Name", db: "name", bucket: "patient" },
+  { excel: "Age", db: "age", bucket: "record" },
+  { excel: "Gender", db: "gender", bucket: "patient" },
+  { excel: "Patient ID", db: "patient_id", bucket: "patient" },
+  { excel: "New Case label", db: "new_case_label", bucket: "record" },
+  { excel: "Additional", db: "additional", bucket: "record" },
+  { excel: "Source", db: "source", bucket: "record" },
+  { excel: "Detail Disease", db: "detail_disease", bucket: "record" },
+  { excel: "Organ Type", db: "organ_type", bucket: "record" },
+  { excel: "Comorbidity", db: "comorbidity", bucket: "record" },
+  { excel: "Family history", db: "family_history", bucket: "record" },
+  { excel: "Metastasis", db: "metastasis", bucket: "record" },
+  { excel: "Patient status", db: "patient_status", bucket: "record" },
+  { excel: "Sample Collection Date", db: "sample_collection_date", bucket: "record" },
+  { excel: "DNA availability", db: "dna_availability", bucket: "record" },
+  { excel: "Sequencing", db: "sequencing", bucket: "record" },
+  { excel: "DIN", db: "din", bucket: "record" },
+  { excel: "Research/Report", db: "research_report", bucket: "record" },
+  { excel: "Sequencing partner (E)", db: "sequencing_partner", bucket: "record" },
+  { excel: "Data received (E)", db: "data_received", bucket: "record" },
+  { excel: "TMR-EGbp", db: "tmr_e", bucket: "record" },
+  { excel: "Old Gbp", db: "old_gbp", bucket: "record" },
+  { excel: "Gbp", db: "gbp", bucket: "record" },
+  { excel: "Data analysed-E (Som)", db: "data_analysed_som", bucket: "record" },
+  { excel: "Data analysed-E (Germ)", db: "data_analysed_germ", bucket: "record" },
+  { excel: "Sample labeling", db: "sample_labeling", bucket: "record" },
+  { excel: "Analysis", db: "analysis", bucket: "record" },
+  { excel: "Report (made/release)", db: "report_status", bucket: "record" },
+  { excel: "Report Release Date", db: "report_release_date", bucket: "record" },
+  { excel: "Comments (report sample ID)", db: "comments", bucket: "record" },
+  { excel: "Consultation", db: "consultation", bucket: "record" },
 ];
 
 // ─── SheetJS loader ───────────────────────────────────────────────────────────
@@ -48,7 +48,7 @@ function ensureSheetJS() {
     if (window.XLSX) { resolve(window.XLSX); return; }
     const s = document.createElement("script");
     s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
-    s.onload  = () => resolve(window.XLSX);
+    s.onload = () => resolve(window.XLSX);
     s.onerror = reject;
     document.head.appendChild(s);
   });
@@ -106,7 +106,7 @@ function FilterBadge({ label, value, onClear }) {
   return (
     <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", borderRadius: 20, background: "#eff6ff", border: "1.5px solid #bfdbfe", fontSize: 13, fontWeight: 600, color: "#2563eb", marginBottom: 10, marginRight: 8 }}>
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+        <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
       </svg>
       <span style={{ fontSize: 11, color: "#64748b", fontWeight: 500 }}>{filterLabels[label] || label}:</span>
       <span>{value}</span>
@@ -198,29 +198,29 @@ function ExpandedSamples({ patientId, selectedSample, onOpenSample, navigate, on
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function PatientRecords() {
-  const [patients, setPatients]             = useState([]);
-  const [search, setSearch]                 = useState("");
-  const [expandedIds, setExpandedIds]       = useState(new Set());
+  const [patients, setPatients] = useState([]);
+  const [search, setSearch] = useState("");
+  const [expandedIds, setExpandedIds] = useState(new Set());
   const [selectedSample, setSelectedSample] = useState(null);
-  const [loadingDetail, setLoadingDetail]   = useState(false);
-  const [fullDetail, setFullDetail]         = useState(null);
-  const [loadingList, setLoadingList]       = useState(true);
-  const [error, setError]                   = useState(null);
-  const [deletingId, setDeletingId]         = useState(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [fullDetail, setFullDetail] = useState(null);
+  const [loadingList, setLoadingList] = useState(true);
+  const [error, setError] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const [filteredByDashboard, setFilteredByDashboard] = useState([]);
-  const [filterLoading, setFilterLoading]   = useState(false);
-  const [exporting, setExporting]           = useState(false);
-  const navigate                            = useNavigate();
-  const location                            = useLocation();
-  const clickTimer                          = useRef(null);
+  const [filterLoading, setFilterLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const clickTimer = useRef(null);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
 
   // ── Read ALL URL filter params ──────────────────────────────────────────────
-  const urlParams    = new URLSearchParams(location.search);
-  const filterOrgan  = urlParams.get("organ_type") || "";
-  const filterCase   = urlParams.get("case_label")  || "";
-  const filterSource = urlParams.get("source")      || "";   // ← NEW
-  const filterPeriod = urlParams.get("period")       || "";
+  const urlParams = new URLSearchParams(location.search);
+  const filterOrgan = urlParams.get("organ_type") || "";
+  const filterCase = urlParams.get("case_label") || "";
+  const filterSource = urlParams.get("source") || "";   // ← NEW
+  const filterPeriod = urlParams.get("period") || "";
   const hasAnyFilter = !!(filterOrgan || filterCase || filterSource || filterPeriod);
 
   // ── Load patients on mount ──────────────────────────────────────────────────
@@ -280,8 +280,8 @@ export default function PatientRecords() {
                 // ── Organ + Case + Source filter on records ──
                 return s.records?.some(r => {
                   let organMatch = true, caseMatch = true, sourceMatch = true;
-                  if (filterOrgan)  organMatch  = String(r.organ_type ?? "").toLowerCase() === filterOrgan.toLowerCase();
-                  if (filterCase)   caseMatch   = String(r.new_case_label ?? "").toLowerCase() === filterCase.toLowerCase();
+                  if (filterOrgan) organMatch = String(r.organ_type ?? "").toLowerCase() === filterOrgan.toLowerCase();
+                  if (filterCase) caseMatch = String(r.new_case_label ?? "").toLowerCase() === filterCase.toLowerCase();
                   if (filterSource) sourceMatch = String(r.source ?? "").toLowerCase() === filterSource.toLowerCase(); // ← NEW
                   return organMatch && caseMatch && sourceMatch;
                 });
@@ -339,9 +339,9 @@ export default function PatientRecords() {
             records.forEach(record => {
               const row = {};
               COLUMN_DEFS.forEach(col => {
-                if (col.bucket === "patient")     row[col.excel] = patient[col.db] ?? "";
+                if (col.bucket === "patient") row[col.excel] = patient[col.db] ?? "";
                 else if (col.bucket === "sample") row[col.excel] = sample[col.db] ?? "";
-                else                              row[col.excel] = record[col.db] ?? "";
+                else row[col.excel] = record[col.db] ?? "";
               });
               allRows.push(row);
             });
@@ -430,8 +430,8 @@ export default function PatientRecords() {
 
   const activePanelPatientId = selectedSample?.patient?.id;
   const filterSummary = [
-    filterOrgan  && `Organ: ${filterOrgan}`,
-    filterCase   && `Case: ${filterCase}`,
+    filterOrgan && `Organ: ${filterOrgan}`,
+    filterCase && `Case: ${filterCase}`,
     filterSource && `Source: ${filterSource}`,   // ← NEW
     filterPeriod && `Period: ${filterPeriod}`,
   ].filter(Boolean).join(" · ");
@@ -485,7 +485,7 @@ export default function PatientRecords() {
                 style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 42, height: 42, borderRadius: 10, border: "1.5px solid #e2e8f0", background: "#fff", color: exporting ? "#94a3b8" : "#16a34a", cursor: (exporting || loadingList || patients.length === 0) ? "not-allowed" : "pointer", opacity: (loadingList || patients.length === 0) ? 0.45 : 1, transition: "all 0.15s", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", flexShrink: 0 }}>
                 {exporting
                   ? <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: "spin 0.7s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
-                  : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>}
+                  : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="3" y1="15" x2="21" y2="15" /><line x1="9" y1="3" x2="9" y2="21" /><line x1="15" y1="3" x2="15" y2="21" /></svg>}
               </button>
 
               {/* Bulk Upload */}
@@ -494,7 +494,7 @@ export default function PatientRecords() {
                 onMouseEnter={e => { e.currentTarget.style.borderColor = "#3b82f6"; e.currentTarget.style.color = "#2563eb"; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.color = "#334155"; }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
                 </svg>
                 Bulk Upload
               </button>
@@ -505,7 +505,7 @@ export default function PatientRecords() {
                 onMouseEnter={e => { e.currentTarget.style.background = "#1d4ed8"; e.currentTarget.style.transform = "translateY(-1px)"; }}
                 onMouseLeave={e => { e.currentTarget.style.background = "#2563eb"; e.currentTarget.style.transform = "none"; }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" />
                 </svg>
                 Add Patient
               </button>
@@ -520,10 +520,10 @@ export default function PatientRecords() {
             {/* ── Active filter badges ── */}
             {hasAnyFilter && (
               <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4, marginBottom: 8 }}>
-                {filterOrgan  && <FilterBadge label="organ_type" value={filterOrgan}  onClear={() => removeFilter("organ_type")} />}
-                {filterCase   && <FilterBadge label="case_label" value={filterCase}   onClear={() => removeFilter("case_label")} />}
-                {filterSource && <FilterBadge label="source"     value={filterSource} onClear={() => removeFilter("source")} />}
-                {filterPeriod && <FilterBadge label="period"     value={filterPeriod} onClear={() => removeFilter("period")} />}
+                {filterOrgan && <FilterBadge label="organ_type" value={filterOrgan} onClear={() => removeFilter("organ_type")} />}
+                {filterCase && <FilterBadge label="case_label" value={filterCase} onClear={() => removeFilter("case_label")} />}
+                {filterSource && <FilterBadge label="source" value={filterSource} onClear={() => removeFilter("source")} />}
+                {filterPeriod && <FilterBadge label="period" value={filterPeriod} onClear={() => removeFilter("period")} />}
                 {[filterOrgan, filterCase, filterSource, filterPeriod].filter(Boolean).length > 1 && (
                   <button onClick={clearAllFilters} style={{ padding: "5px 12px", borderRadius: 20, border: "1.5px solid #fecaca", background: "#fef2f2", color: "#dc2626", fontSize: 12, fontWeight: 600, cursor: "pointer", marginBottom: 10 }}>
                     Clear all ×
@@ -536,7 +536,7 @@ export default function PatientRecords() {
             <div style={{ position: "relative", maxWidth: 460, marginBottom: 24 }}>
               <svg style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", pointerEvents: "none" }}
                 width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by Name or Patient ID..."
                 style={{ width: "100%", padding: "11px 40px 11px 42px", borderRadius: 10, border: "1.5px solid #e2e8f0", background: "#fff", fontSize: 14, color: "#0f172a", outline: "none", fontFamily: "inherit", boxShadow: "0 1px 4px rgba(0,0,0,0.04)", transition: "border-color 0.15s, box-shadow 0.15s" }}
@@ -586,7 +586,7 @@ export default function PatientRecords() {
                     ) : (
                       filtered.map((p, idx) => {
                         const isExpanded = expandedIds.has(p.id);
-                        const isActive   = activePanelPatientId === p.id;
+                        const isActive = activePanelPatientId === p.id;
                         const hasSamples = (p.total_samples ?? 0) > 0;
                         const isDeleting = deletingId === p.id;
                         return (
@@ -602,7 +602,7 @@ export default function PatientRecords() {
                                 ) : <div style={{ width: 26 }} />}
                               </td>
                               <td style={{ padding: "17px 16px" }}><span style={{ color: "#2563eb", fontSize: 13, fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>{p.patient_id || "—"}</span></td>
-                              <td style={{ padding: "17px 16px" }}><span style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{"-                " || "—"}</span></td>
+                              <td style={{ padding: "17px 16px" }}><span style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{p.name || "—"}</span></td>
                               <td style={{ padding: "17px 16px" }}><span style={{ fontSize: 14, color: "#334155" }}>{p.gender || "—"}</span></td>
                               <td style={{ padding: "17px 16px" }}>
                                 {hasSamples ? (
@@ -677,11 +677,11 @@ export default function PatientRecords() {
                       <div style={{ fontSize: 15, fontWeight: 700, color: "#0f172a" }}>{selectedSample.patient?.name || "—"}</div>
                     </div>
                     <DetailRow label="Patient ID" value={selectedSample.patient?.patient_id} />
-                    <DetailRow label="Gender"     value={selectedSample.patient?.gender} />
+                    <DetailRow label="Gender" value={selectedSample.patient?.gender} />
                     <DetailRow label="Case Label" value={selectedSample.sample?.records?.[0]?.new_case_label || selectedSample.sample?.new_case_label} />
-                    <DetailRow label="AOB ID"     value={selectedSample.sample?.records?.[0]?.aob_id} />
-                    <DetailRow label="Age"        value={selectedSample.sample?.records?.[0]?.age} />
-                    <DetailRow label="SID"        value={selectedSample.sample?.sid} />
+                    <DetailRow label="AOB ID" value={selectedSample.sample?.records?.[0]?.aob_id} />
+                    <DetailRow label="Age" value={selectedSample.sample?.records?.[0]?.age} />
+                    <DetailRow label="SID" value={selectedSample.sample?.sid} />
                     <div style={{ paddingTop: 16 }}>
                       <button onClick={() => navigate(`/view-patient/${selectedSample.patient?.id}/${selectedSample.sample?.id}`)}
                         style={{ width: "100%", padding: "10px", borderRadius: 9, border: "none", background: "#2563eb", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.15s", boxShadow: "0 2px 8px rgba(37,99,235,0.25)" }}
@@ -689,7 +689,7 @@ export default function PatientRecords() {
                         onMouseLeave={e => { e.currentTarget.style.background = "#2563eb"; e.currentTarget.style.transform = "none"; }}>
                         View Full Patient Record
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+                          <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
                         </svg>
                       </button>
                     </div>

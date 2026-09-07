@@ -602,7 +602,7 @@ export default function PatientRecords() {
                                 ) : <div style={{ width: 26 }} />}
                               </td>
                               <td style={{ padding: "17px 16px" }}><span style={{ color: "#2563eb", fontSize: 13, fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>{p.patient_id || "—"}</span></td>
-                              <td style={{ padding: "17px 16px" }}><span style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{p.name || "—"}</span></td>
+                              <td style={{ padding: "17px 16px" }}><span style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{"—"}</span></td>
                               <td style={{ padding: "17px 16px" }}><span style={{ fontSize: 14, color: "#334155" }}>{p.gender || "—"}</span></td>
                               <td style={{ padding: "17px 16px" }}>
                                 {hasSamples ? (

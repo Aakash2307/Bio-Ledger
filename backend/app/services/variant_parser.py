@@ -1,247 +1,303 @@
 """
 app/services/variant_parser.py
 
-Parses whatever sample Excel file gets uploaded for the variant
-visualization feature (Germline Results, Somatic Results, or a
-PRS/Merged file), auto-detecting which of the three it is, and
-returns visualization-ready JSON. No DB persistence yet — this is
-a stateless parse-and-return service by design (deferred per product
-decision) so the frontend can render immediately after upload.
+Ingests large VEP-annotated germline/somatic result files (.xlsx/.csv/.tsv,
+~30-40k rows) and serves them back to the frontend as paginated / filtered /
+sorted JSON, plus per-variant detail — without ever loading the full table
+into memory on every request.
 
-Germline/Somatic files: the `Variations` sheet is VEP output with one
-row per transcript per variant, so a single genomic variant
-(CHROM+POS+REF+ALT) spans multiple rows. We collapse to one row per
-variant:
-  1. Prefer the row where MANE_SELECT is populated (the clinically
-     canonical transcript), if any row in the group has one.
-  2. Otherwise, prefer the row with the most severe IMPACT
-     (HIGH > MODERATE > LOW > MODIFIER).
+Strategy:
+  1. Parse ONCE on upload. Rename the columns we actually need for the UI,
+     derive a variant_id and a pathogenicity_class (A-E), and write the
+     result to a Parquet file (variant_cache/<sample_id>.parquet).
+  2. All later reads (list page, filter, sort, detail lookup) run as DuckDB
+     SQL directly against that Parquet file. DuckDB does the heavy lifting
+     (filter/sort/paginate) at native speed, so 37k rows is trivial.
 
-PRS/Merged files: `Sheet1` is already one row per trait/sample, no
-collapsing needed.
+Install once: pip install pandas duckdb pyarrow openpyxl
 """
 
+import os
+import math
 import pandas as pd
-import openpyxl
+import duckdb
 
-IMPACT_RANK = {"HIGH": 4, "MODERATE": 3, "LOW": 2, "MODIFIER": 1}
+CACHE_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "variant_cache")
+os.makedirs(CACHE_DIR, exist_ok=True)
 
-# ACMG-style badge bucket, ordered by clinical significance (most severe
-# first). CLIN_SIG cells can contain multiple comma-separated terms
-# (conflicting ClinVar submissions) — we pick the most severe bucket
-# present, matching how the reference product's LP/VUS/LB/B badges read.
-CLIN_SIG_PRIORITY = [
-    ("P", ["pathogenic"]),          # checked after LP below (see bucket_for_clin_sig)
-    ("LP", ["likely_pathogenic"]),
-    ("VUS", ["uncertain_significance"]),
-    ("LB", ["likely_benign"]),
-    ("B", ["benign"]),
-]
-
-GERMLINE_VARIATIONS_COLS = [
-    "CHROM", "POS", "REF", "ALT", "INFO", "FORMAT", "Germline",
-    "varient_type", "Tumor_Ref_alele_Depth", "Tumor_Alt_allele_Depth",
-    "Tumor_Total_Genotype_Depth",
-    "Tumor_Allele_Fraction(alt_allele/total_genotype_depth)", "Intogen",
-    "Consequence", "IMPACT", "SYMBOL", "Gene", "Feature_type", "Feature",
-    "BIOTYPE", "EXON", "INTRON", "HGVSc", "HGVSp", "cDNA_position",
-    "CDS_position", "Protein_position", "Amino_acids", "Codons",
-    "Existing_variation", "DISTANCE", "STRAND", "FLAGS", "SYMBOL_SOURCE",
-    "HGNC_ID", "MANE_SELECT", "MANE_PLUS_CLINICAL", "TSL", "APPRIS",
-    "SIFT", "PolyPhen", "AF", "gnomADe_AF", "gnomADe_AFR_AF",
-    "gnomADe_AMR_AF", "gnomADe_ASJ_AF", "gnomADe_EAS_AF", "gnomADe_FIN_AF",
-    "gnomADe_NFE_AF", "gnomADe_SAS_AF", "CLIN_SIG", "SOMATIC", "PHENO",
-    "Mastermind_MMID3", "PHENOTYPES", "DisGeNET", "QUAL", "FILTER",
-    "HGVS_OFFSET", "PUBMED", "MOTIF_NAME", "MOTIF_POS", "HIGH_INF_POS",
-    "MOTIF_SCORE_CHANGE", "TRANSCRIPTION_FACTORS", "Location", "LRT_pred",
-    "MutationTaster_pred", "MutationAssessor_pred", "FATHMM_pred",
-    "PROVEAN_pred", "MetaLR_pred", "DEOGEN2_pred", "ClinPred_pred",
-    "SpliceAI_pred", "CADD_PHRED", "CADD_RAW",
-]
-SOMATIC_VARIATIONS_COLS = [c if c != "Germline" else "Somatic" for c in GERMLINE_VARIATIONS_COLS]
-
-PRS_COLS = [
-    "Sample", "Study ID", "Reported Trait", "Trait", "Score Type",
-    "Polygenic Risk Score", "Percentile", "Protective Variants",
-    "Risk Variants", "Variants Without Risk Allele",
-    "Variants in High LD", "Mapped ID",
-]
+# Map each canonical field the UI needs to a list of possible source column
+# names, in priority order — different pipeline exports (germline vs somatic
+# vs older runs) don't always use the same headers.
+FIELD_ALIASES = {
+    "chrom": ["CHROM"],
+    "pos": ["POS"],
+    "ref": ["REF"],
+    "alt": ["ALT"],
+    "gene": ["SYMBOL"],
+    "consequence": ["Consequence"],
+    "impact": ["IMPACT"],
+    "hgvsc": ["HGVSc"],
+    "hgvsp": ["HGVSp"],
+    "depth": ["Tumor_Total_Genotype_Depth", "DP", "Total_Depth"],
+    "vf_pct": ["Tumor_Allele_Fraction(alt_allele/total_genotype_depth)", "Alt_allele_freq", "AF"],
+    "gnomad_af": ["gnomADe_AF"],
+    "sift": ["SIFT"],
+    "polyphen": ["PolyPhen"],
+    "clin_sig": ["CLIN_SIG"],
+    # Newer pipeline exports (Germline_Results_5 / Somatic_WithExclusion_
+    # Results onward) have a dedicated rsID column; older exports only had
+    # rsIDs bundled inside "Existing_variation" — keep both, new one first.
+    "rsid": ["rsID", "Existing_variation"],
+    # New in the latest pipeline:
+    "acmg_classification": ["ACMG_Classification"],
+    "acmg_criteria": ["ACMG_Criteria"],
+    "alphamissense_class": ["AlphaMissense_class"],
+    "alphamissense_pathogenicity": ["AlphaMissense_pathogenicity"],
+    "revel_score": ["REVEL_score"],
+    "cadd_phred": ["CADD_phred"],
+}
 
 
-def detect_file_type(path: str) -> str:
-    """Returns 'germline', 'somatic', or 'prs' by inspecting sheet names
-    and headers. Raises ValueError if the file doesn't match any known
-    shape."""
-    # header-only peek stays on openpyxl (read_only mode is fast enough
-    # for a handful of rows and avoids adding a second dependency path)
-    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
-    sheetnames = wb.sheetnames
-
-    if "Variations" in sheetnames:
-        ws = wb["Variations"]
-        header = next(ws.iter_rows(min_row=1, max_row=1, values_only=True))
-        if "Somatic" in header:
-            return "somatic"
-        if "Germline" in header:
-            return "germline"
-        raise ValueError(
-            "Found a 'Variations' sheet but couldn't tell germline vs "
-            "somatic (no 'Germline' or 'Somatic' column in the header row)."
-        )
-
-    if "Sheet1" in sheetnames:
-        ws = wb["Sheet1"]
-        header = next(ws.iter_rows(min_row=1, max_row=1, values_only=True))
-        if "Polygenic Risk Score" in header:
-            return "prs"
-
-    raise ValueError(
-        "Unrecognized file — expected a Germline/Somatic Results file "
-        "(sheet 'Variations') or a PRS/Merged file (sheet 'Sheet1' with "
-        "a 'Polygenic Risk Score' column)."
-    )
+def _pick_data_sheet(file_path: str) -> str | None:
+    """Multi-sheet exports (ReadMe / Summary-results / Variations, etc.)
+    put the real variant table in whichever sheet has the most columns —
+    legend/summary sheets are always narrow. Returns None for CSV/TSV
+    (single-sheet, not applicable)."""
+    if not file_path.lower().endswith((".xlsx", ".xls")):
+        return None
+    xl = pd.ExcelFile(file_path)
+    if len(xl.sheet_names) == 1:
+        return xl.sheet_names[0]
+    best_sheet, best_width = xl.sheet_names[0], -1
+    for name in xl.sheet_names:
+        width = pd.read_excel(xl, sheet_name=name, nrows=0).shape[1]
+        if width > best_width:
+            best_sheet, best_width = name, width
+    return best_sheet
 
 
-def _bucket_for_clin_sig(clin_sig: str) -> str:
-    """CLIN_SIG cells can hold several comma-separated ClinVar terms
-    (conflicting submissions) — pick the single most clinically severe
-    bucket present, checked in priority order P > LP > VUS > LB > B."""
-    if not clin_sig or clin_sig == "-":
-        return "N/A"
-    terms = [t.strip() for t in clin_sig.lower().split(",")]
-    if "pathogenic" in terms:
-        return "P"
-    if "likely_pathogenic" in terms or "pathogenic/likely_pathogenic" in terms:
-        return "LP"
-    if "uncertain_significance" in terms:
-        return "VUS"
-    if "likely_benign" in terms or "benign/likely_benign" in terms:
-        return "LB"
-    if "benign" in terms:
+def _json_safe(df: pd.DataFrame) -> pd.DataFrame:
+    """FastAPI/Starlette's JSON encoder rejects NaN/Infinity outright
+    (ValueError: Out of range float values are not JSON compliant).
+    Pandas/DuckDB produce NaN for any missing numeric cell, so every
+    row with an empty depth/VF%/gnomad_af would otherwise crash the
+    whole response.
+
+    IMPORTANT: must cast to object dtype BEFORE replacing — on a
+    float64 column, `.where(..., None)` silently coerces None back
+    into NaN, since a float64 Series can't actually hold None. Casting
+    to object first makes the replacement stick."""
+    df = df.replace([float("inf"), float("-inf")], None)
+    return df.astype(object).where(pd.notnull(df), None)
+
+
+def _cache_path(sample_id: str) -> str:
+    safe = "".join(c for c in sample_id if c.isalnum() or c in "._-")
+    return os.path.join(CACHE_DIR, f"{safe}.parquet")
+
+
+def _classify(row) -> str:
+    """Approximate SOPHiA-style A(Pathogenic)..E(Benign) bucketing, an "M"
+    (Mixed/Conflicting) bucket for genuine ClinVar disagreement, and a
+    separate "N" (No ClinVar Data) bucket for variants with no usable
+    ClinVar significance at all.
+
+    IMPORTANT: "no data" and "genuinely conflicting" are NOT the same thing
+    and must not share a bucket. An earlier version of this function merged
+    them into one "M" bucket, which meant a dataset where most variants
+    simply have no ClinVar annotation looked like most variants were
+    "disputed" — misleading in the opposite direction from the original
+    problem (blank data silently guessed as Benign). Keeping them separate:
+    "M" = ClinVar submitters actually disagreed on this variant.
+    "N" = ClinVar has nothing to say about this variant at all.
+
+    ClinVar submissions for a variant are often reported as a
+    comma-separated list of every submitter's call, e.g.
+    "pathogenic,benign" or "conflicting_interpretations_of_pathogenicity,
+    benign" — different labs disagreeing on the same variant. A naive
+    substring check would see "pathogenic" in "pathogenic,benign" and file
+    it under Pathogenic, which is also misleading: the correct read is
+    "disputed", not "pathogenic"."""
+    clin = str(row.get("clin_sig", "") or "").strip().lower()
+
+    # No usable ClinVar submission at all -> its own "No Data" bucket,
+    # explicitly NOT the same as a genuine conflict.
+    if not clin or clin in ("-", "not_provided", "not provided"):
+        return "N"
+
+    # "/" joins terms from a single combined ClinVar category (e.g.
+    # "benign/likely_benign") and isn't a real conflict; "," separates
+    # distinct submissions and IS what we're checking for disagreement.
+    tokens = [t.strip() for t in clin.replace("/", ",").split(",") if t.strip() and t.strip() != "-"]
+    has_pathogenic = any("pathogenic" in t and "benign" not in t for t in tokens)
+    has_benign = any("benign" in t for t in tokens)
+    explicit_conflict = "conflicting_interpretations_of_pathogenicity" in clin
+    if explicit_conflict or (has_pathogenic and has_benign):
+        return "M"
+
+    if "pathogenic" in clin and "likely" not in clin:
+        return "A"
+    if "likely_pathogenic" in clin or "likely pathogenic" in clin:
         return "B"
-    return "N/A"
+    if "uncertain" in clin or "vus" in clin:
+        return "C"
+    # Benign and Likely Benign are combined into a single bucket per
+    # request — the practical distinction rarely matters day-to-day, and it
+    # halves the number of "basically fine" filter buttons in the sidebar.
+    if "likely_benign" in clin or "likely benign" in clin or "benign" in clin:
+        return "D"
+
+    # A ClinVar term exists but isn't one we recognize as part of the
+    # pathogenicity spectrum (e.g. "risk_factor", "association",
+    # "protective", "drug_response" on their own) -> also "No ClinVar Data"
+    # rather than a guessed A-E bucket, since it's not a Benign/Pathogenic
+    # call either.
+    return "N"
 
 
-def _zygosity_from_gt(genotype_field: str) -> tuple[str, str]:
-    """genotype_field looks like '0/1:57,37:94:99:974,0,1675'.
-    Returns (genotype_str, zygosity_label)."""
-    if not genotype_field:
-        return ("N/A", "N/A")
-    gt = genotype_field.split(":")[0]
-    alleles = gt.replace("|", "/").split("/")
-    if len(alleles) < 2:
-        return (gt, "N/A")
-    if alleles[0] == alleles[1]:
-        return (gt, "HOM" if alleles[0] != "0" else "REF")
-    return (gt, "HET")
+def parse_and_cache(file_path: str, sample_id: str, variant_type: str) -> int:
+    """Parse the uploaded file once and write the normalized Parquet cache.
+    Returns the number of rows ingested."""
+    if file_path.lower().endswith((".xlsx", ".xls")):
+        sheet = _pick_data_sheet(file_path)
+        df = pd.read_excel(file_path, sheet_name=sheet)
+    else:
+        df = pd.read_csv(file_path, sep=None, engine="python")
 
+    # Resolve each canonical field to whichever alias actually exists in
+    # this file, then rename JUST those columns to their canonical names.
+    # IMPORTANT: unlike an earlier version of this function, we do NOT drop
+    # every other column afterward. The Details tab is meant to show every
+    # field the pipeline provides beyond what's already in Overview, and
+    # both the Germline and Somatic exports have 90-100+ columns (VEP
+    # consequence detail, population sub-frequencies, in-silico predictors,
+    # SpliceAI scores, and — Somatic only — ClinVar/CIViC/AMP tiering).
+    # Keeping every column (renamed or not) means the Details tab can
+    # reflect on the full row rather than needing a hand-maintained list
+    # that inevitably drifts out of sync with the pipeline's actual output.
+    rename_map = {}
+    for canonical, aliases in FIELD_ALIASES.items():
+        for alias in aliases:
+            if alias in df.columns:
+                rename_map[alias] = canonical
+                break
 
-def _impact_rank(impact: str) -> int:
-    return IMPACT_RANK.get(impact, 0)
+    df = df.rename(columns=rename_map)
 
+    for col in ("depth", "vf_pct", "gnomad_af"):
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
 
-def parse_variations_file(path: str, file_type: str, include_low_impact: bool = True) -> dict:
-    """file_type is 'germline' or 'somatic'. Returns a dict with
-    `variants` (collapsed, one row per variant) and `summary` (counts
-    for the header chips), matching the reference UI's shape.
+    if "vf_pct" in df.columns:
+        # Normalize a 0-1 allele fraction into a display percentage
+        df["vf_pct"] = df["vf_pct"].apply(lambda x: x * 100 if pd.notna(x) and x <= 1 else x)
 
-    `include_low_impact=False` (default) drops LOW/MODIFIER-impact
-    *rows* before collapsing — both for speed (the raw sheet has
-    100k+ rows, one per transcript) and because the reference UI's
-    default view is HIGH/MODERATE only. When a variant's only rows
-    are LOW/MODIFIER, it's dropped entirely from this default view
-    (available via a re-parse with include_low_impact=True, since
-    parsing is stateless — see module docstring)."""
-    gt_col = "Germline" if file_type == "germline" else "Somatic"
-    usecols = GERMLINE_VARIATIONS_COLS if file_type == "germline" else SOMATIC_VARIATIONS_COLS
-
-    # calamine is ~5x faster than openpyxl for reading large sheets
-    df = pd.read_excel(path, sheet_name="Variations", usecols=usecols, engine="calamine")
-
-    if not include_low_impact:
-        df = df[df["IMPACT"].isin(["HIGH", "MODERATE"])]
-
-    df["mane_flag"] = df["MANE_SELECT"].apply(
-        lambda v: 1 if isinstance(v, str) and v not in ("-", "") else 0
+    df["variant_type"] = variant_type
+    df["variant_id"] = (
+        df.get("chrom", pd.Series(dtype=str)).astype(str) + ":" +
+        df.get("pos", pd.Series(dtype=str)).astype(str) + ":" +
+        df.get("ref", pd.Series(dtype=str)).astype(str) + ">" +
+        df.get("alt", pd.Series(dtype=str)).astype(str)
     )
-    df["impact_rank"] = df["IMPACT"].apply(_impact_rank)
+    df["pathogenicity_class"] = df.apply(_classify, axis=1)
 
-    df = df.sort_values(
-        by=["CHROM", "POS", "REF", "ALT", "mane_flag", "impact_rank"],
-        ascending=[True, True, True, True, False, False],
-    )
-    collapsed = df.groupby(["CHROM", "POS", "REF", "ALT"], as_index=False).first()
-
-    variants = []
-    clin_sig_counts = {"P": 0, "LP": 0, "VUS": 0, "LB": 0, "B": 0, "N/A": 0}
-    zygosity_counts = {"HET": 0, "HOM": 0}
-    genes = set()
-
-    # every raw column name we read, in original order, minus the two
-    # helper columns we added ourselves for sorting
-    raw_cols = [c for c in usecols]
-
-    for _, row in collapsed.iterrows():
-        clin_sig = row.get("CLIN_SIG")
-        clin_sig = clin_sig if isinstance(clin_sig, str) else None
-        badge = _bucket_for_clin_sig(clin_sig)
-        clin_sig_counts[badge] = clin_sig_counts.get(badge, 0) + 1
-
-        genotype_raw = row.get(gt_col)
-        genotype, zygosity = _zygosity_from_gt(
-            genotype_raw if isinstance(genotype_raw, str) else ""
-        )
-        if zygosity in zygosity_counts:
-            zygosity_counts[zygosity] += 1
-
-        symbol = row.get("SYMBOL")
-        if isinstance(symbol, str) and symbol not in ("-", ""):
-            genes.add(symbol)
-
-        # pass through every one of the 77 raw columns as-is (JSON-safe),
-        # instead of hand-picking which ones matter
-        record = {}
-        for col in raw_cols:
-            val = row.get(col)
-            if pd.isna(val):
-                record[col] = None
-            elif isinstance(val, (int, float, str, bool)):
-                record[col] = val
-            else:
-                record[col] = str(val)
-
-        # a handful of computed fields layered on top, not replacing the raw ones
-        record["acmg"] = badge
-        record["zygosity"] = zygosity
-        record["genotype"] = genotype
-
-        variants.append(record)
-
-    summary = {
-        "unique_genes": len(genes),
-        "total_variants": len(variants),
-        "clin_sig_counts": clin_sig_counts,
-        "zygosity_counts": zygosity_counts,
-    }
-
-    return {"file_type": file_type, "summary": summary, "variants": variants}
+    # NOTE: rows are intentionally NOT deduplicated here — every row from the
+    # source file (including multiple transcript/consequence annotations for
+    # the same chrom/pos/ref/alt) is kept, per request. query_variants()
+    # applies a secondary sort tie-break on variant_id so rows sharing the
+    # same variant stay in a stable, deterministic order across pages rather
+    # than shuffling between requests.
+    df.to_parquet(_cache_path(sample_id), index=False)
+    return len(df)
 
 
-def parse_prs_file(path: str) -> dict:
-    df = pd.read_excel(path, sheet_name="Sheet1", usecols=PRS_COLS, engine="calamine")
-    records = df.where(pd.notna(df), None).to_dict(orient="records")
+def query_variants(sample_id, page=1, page_size=100, sort_by="pos", sort_dir="asc",
+                    class_filter=None, search=None, gene_filter=None):
+    path = _cache_path(sample_id)
+    if not os.path.exists(path):
+        return {"rows": [], "total": 0, "page": page, "page_size": page_size}
+
+    con = duckdb.connect()
+
+    # Discover which columns actually exist in this sample's cache before
+    # building any SQL that references them — different pipeline exports
+    # (germline vs somatic vs PRS) don't all have the same headers.
+    actual_columns = [
+        r[0] for r in con.execute(f"DESCRIBE SELECT * FROM read_parquet('{path}')").fetchall()
+    ]
+
+    where, params = [], []
+    if class_filter and "pathogenicity_class" in actual_columns:
+        where.append("pathogenicity_class = ?")
+        params.append(class_filter)
+    if gene_filter and "gene" in actual_columns:
+        where.append("gene = ?")
+        params.append(gene_filter)
+    if search:
+        search_cols = [c for c in ("gene", "hgvsc", "rsid") if c in actual_columns]
+        if search_cols:
+            where.append("(" + " OR ".join(f"{c} ILIKE ?" for c in search_cols) + ")")
+            like = f"%{search}%"
+            params += [like] * len(search_cols)
+
+    where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+    sort_dir = "DESC" if str(sort_dir).lower() == "desc" else "ASC"
+    # Fall back to the first available column if the requested sort column
+    # doesn't exist in this sample's cache, instead of crashing.
+    safe_sort_col = sort_by if sort_by in actual_columns else (actual_columns[0] if actual_columns else None)
+
+    total = con.execute(
+        f"SELECT COUNT(*) FROM read_parquet('{path}') {where_sql}", params
+    ).fetchone()[0]
+
+    offset = (page - 1) * page_size
+    # Secondary tie-break on variant_id (in addition to the requested sort
+    # column) so that rows with equal sort values — e.g. many variants
+    # sharing the same "pos" across different chromosomes — get a stable,
+    # deterministic order across requests instead of DuckDB being free to
+    # return them in any order each time.
+    tie_break = ", variant_id ASC" if "variant_id" in actual_columns and safe_sort_col != "variant_id" else ""
+    order_sql = f"ORDER BY {safe_sort_col} {sort_dir} NULLS LAST{tie_break}" if safe_sort_col else ""
+    rows = con.execute(
+        f"""
+        SELECT * FROM read_parquet('{path}')
+        {where_sql}
+        {order_sql}
+        LIMIT ? OFFSET ?
+        """,
+        params + [page_size, offset],
+    ).fetchdf()
+
     return {
-        "file_type": "prs",
-        "summary": {"total_traits": len(records)},
-        "records": records,
+        "rows": _json_safe(rows).to_dict(orient="records"),
+        "total": int(total),
+        "page": page,
+        "page_size": page_size,
+        "available_columns": actual_columns,  # temporary: helps us see what actually got parsed
     }
 
 
-def parse_sample_file(path: str, include_low_impact: bool = True) -> dict:
-    """Entry point: detect type, parse accordingly. Defaults to
-    including every IMPACT level (per product decision — accept the
-    heavier payload rather than silently dropping data)."""
-    file_type = detect_file_type(path)
-    if file_type == "prs":
-        return parse_prs_file(path)
-    return parse_variations_file(path, file_type, include_low_impact=include_low_impact)
+def get_summary(sample_id):
+    """Powers the sidebar counts: total retained + per-class breakdown."""
+    path = _cache_path(sample_id)
+    if not os.path.exists(path):
+        return {"total": 0, "classes": {}}
+    con = duckdb.connect()
+    total = con.execute(f"SELECT COUNT(*) FROM read_parquet('{path}')").fetchone()[0]
+    rows = con.execute(
+        f"SELECT pathogenicity_class, COUNT(*) c FROM read_parquet('{path}') GROUP BY 1"
+    ).fetchall()
+    return {"total": int(total), "classes": {r[0]: r[1] for r in rows}}
+
+
+def get_variant_detail(sample_id, variant_id):
+    path = _cache_path(sample_id)
+    if not os.path.exists(path):
+        return None
+    con = duckdb.connect()
+    row = con.execute(
+        f"SELECT * FROM read_parquet('{path}') WHERE variant_id = ?", [variant_id]
+    ).fetchdf()
+    if row.empty:
+        return None
+    return _json_safe(row).iloc[0].to_dict()

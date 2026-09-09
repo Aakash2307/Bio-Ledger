@@ -14,7 +14,7 @@ Wire it up in main.py with:
 
 import os
 import shutil
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Query
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Query # type: ignore
 
 from app.services.variant_parser import (
     parse_and_cache, query_variants, get_summary, get_variant_detail,

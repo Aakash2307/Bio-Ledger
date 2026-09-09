@@ -20,7 +20,7 @@ Install once: pip install pandas duckdb pyarrow openpyxl
 import os
 import math
 import pandas as pd
-import duckdb
+import duckdb # type: ignore
 
 CACHE_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "variant_cache")
 os.makedirs(CACHE_DIR, exist_ok=True)

@@ -148,7 +148,7 @@ def add_report_automation_schema():
     try:
         cursor.execute("CREATE INDEX idx_reports_sample_ref ON reports(sample_ref)")
     except Exception as e:
-        if "Duplicate key name" not in str(e):
+        if "Duplicate key name" not in str(e): # type: ignore
             raise
 
     conn.commit()

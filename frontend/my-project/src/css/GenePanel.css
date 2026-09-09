@@ -1,0 +1,366 @@
+/* ── Gene Panel ────────────────────────────────────────────────────────
+   Matched to the existing EXOME Dashboard system: light canvas, white
+   bordered cards with a soft shadow, serif page title, sans-serif body,
+   pastel pill badges (like the CON/CTN/CAN case-category chips), blue as
+   the app's primary/active accent. Category color is the one place hue
+   carries meaning: pink for cancerous (matches the existing CAN chip),
+   blue for non-cancerous (matches the app's primary blue).
+   ────────────────────────────────────────────────────────────────────── */
+
+.gene-panel-page {
+  --ink: #0f172a;
+  --ink-secondary: #64748b;
+  --ink-muted: #94a3b8;
+  --surface: #ffffff;
+  --canvas: #f7f8fb;
+  --border: #e6e8ee;
+  --border-strong: #d7dae3;
+
+  --cancerous: #db2777;
+  --cancerous-soft: #fdf2f8;
+  --cancerous-border: #fbcfe8;
+
+  --non-cancerous: #2563eb;
+  --non-cancerous-soft: #eff6ff;
+  --non-cancerous-border: #bfdbfe;
+
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+
+  --card-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 8px rgba(15, 23, 42, 0.04);
+
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: -apple-system, "Segoe UI", sans-serif;
+  padding: 32px;
+  min-height: 100%;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────── */
+
+.gene-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+.gene-panel-titles h1 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 26px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  color: var(--ink);
+}
+
+.gene-panel-titles p {
+  font-size: 13.5px;
+  color: var(--ink-secondary);
+  margin: 0;
+}
+
+.upload-btn {
+  background: var(--accent);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+  border: 1px solid var(--accent);
+  white-space: nowrap;
+}
+
+.upload-btn:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.upload-message {
+  padding: 10px 14px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  font-size: 13px;
+  border: 1px solid transparent;
+}
+
+.upload-message.success {
+  background: #f0fdf4;
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+
+.upload-message.error {
+  background: var(--cancerous-soft);
+  color: var(--cancerous);
+  border-color: var(--cancerous-border);
+}
+
+/* ── Stat cards ──────────────────────────────────────────────────────── */
+
+.stat-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px 22px;
+  box-shadow: var(--card-shadow);
+  position: relative;
+}
+
+.stat-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.stat-label {
+  font-size: 13.5px;
+  color: var(--ink-secondary);
+  font-weight: 500;
+}
+
+.stat-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stat-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.stat-icon-neutral {
+  background: #eef2ff;
+  color: #4f46e5;
+}
+
+.stat-icon-cancerous {
+  background: var(--cancerous-soft);
+  color: var(--cancerous);
+}
+
+.stat-icon-non-cancerous {
+  background: var(--non-cancerous-soft);
+  color: var(--non-cancerous);
+}
+
+.stat-value {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Panel breakdown ─────────────────────────────────────────────────── */
+
+.panel-breakdown {
+  margin-bottom: 24px;
+}
+
+.panel-breakdown h3 {
+  font-size: 12.5px;
+  font-weight: 600;
+  margin: 14px 0 8px;
+  color: var(--ink-secondary);
+}
+
+.panel-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.panel-chip {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--ink-secondary);
+}
+
+.chip-cancerous {
+  background: var(--cancerous-soft);
+  border-color: var(--cancerous-border);
+  color: var(--cancerous);
+}
+
+.chip-non-cancerous {
+  background: var(--non-cancerous-soft);
+  border-color: var(--non-cancerous-border);
+  color: var(--non-cancerous);
+}
+
+/* ── View toggle ─────────────────────────────────────────────────────── */
+/* styled like the "All Time / Year" filter pills on the dashboard */
+
+.view-toggle {
+  display: inline-flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.toggle-btn {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  color: var(--ink-secondary);
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background-color 0.12s ease;
+}
+
+.toggle-btn.active {
+  background: var(--non-cancerous-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── Filters ─────────────────────────────────────────────────────────── */
+
+.gene-filters {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.gene-filters input,
+.gene-filters select {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 9px 14px;
+  font-size: 13.5px;
+  outline: none;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.gene-filters input:focus,
+.gene-filters select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.gene-filters input {
+  flex: 1;
+  min-width: 220px;
+  border-radius: 999px;
+}
+
+/* ── Table ───────────────────────────────────────────────────────────── */
+
+.gene-table-wrapper {
+  background: var(--surface);
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: var(--card-shadow);
+}
+
+.gene-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.gene-table th {
+  text-align: left;
+  padding: 12px 18px;
+  background: #fafbfd;
+  color: var(--ink-secondary);
+  font-weight: 600;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.gene-table td {
+  padding: 11px 18px;
+  border-top: 1px solid var(--border);
+  color: var(--ink);
+}
+
+.gene-table tbody tr:hover {
+  background: var(--canvas);
+}
+
+.gene-symbol {
+  font-weight: 700;
+  font-family: "SF Mono", "JetBrains Mono", ui-monospace, monospace;
+  font-size: 13px;
+}
+
+.empty-row {
+  text-align: center;
+  color: var(--ink-muted);
+  padding: 32px !important;
+}
+
+.category-badge {
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.badge-cancerous {
+  background: var(--cancerous-soft);
+  color: var(--cancerous);
+}
+
+.badge-non-cancerous {
+  background: var(--non-cancerous-soft);
+  color: var(--non-cancerous);
+}
+
+/* ── Pagination ──────────────────────────────────────────────────────── */
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 18px;
+  font-size: 13px;
+  color: var(--ink-secondary);
+}
+
+.pagination button {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  color: var(--ink);
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.pagination button:hover:not(:disabled) {
+  background: var(--canvas);
+}
+
+.pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

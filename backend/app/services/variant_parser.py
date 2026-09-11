@@ -22,6 +22,14 @@ import math
 import pandas as pd
 import duckdb # type: ignore
 
+from app.services.gene_panel_db import get_gene_category_lookup
+from app.services.gene_panel_parser import PANEL_MATCHERS
+
+# Single source of truth for which category each panel belongs to, reused
+# from gene_panel_parser.py's PANEL_MATCHERS instead of hand-duplicated
+# here — e.g. {"Somatic": "cancerous", "Cardiac": "non_cancerous", ...}
+PANEL_CATEGORY = {panel_label: category for _, panel_label, category in PANEL_MATCHERS}
+
 CACHE_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "variant_cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
@@ -155,6 +163,38 @@ def _classify(row) -> str:
     return "N"
 
 
+def _classify_gene(gene, lookup: dict) -> tuple[str | None, str | None]:
+    """Look up a variant's gene symbol against the gene_panels reference
+    table (already loaded into `lookup` once per upload, not per row).
+
+    Returns (gene_category, gene_panels):
+      - gene_category: "cancerous" | "non_cancerous" | "both" | None
+        ("both" happens for real — e.g. ABL1 sits in both a cancerous
+        Somatic panel and a non-cancerous Cardiac panel; that's not a data
+        error, some genes legitimately span both lists)
+      - gene_panels: pipe-joined panel names the gene matched, or None
+
+    Matching is case-insensitive and exact-symbol only (no aliasing) —
+    same convention as the gene_panels table itself.
+    """
+    if not gene or (isinstance(gene, float) and pd.isna(gene)):
+        return None, None
+
+    matches = lookup.get(str(gene).strip().upper())
+    if not matches:
+        return None, None
+
+    categories = {m["category"] for m in matches}
+    panels = sorted({m["panel"] for m in matches})
+    if categories == {"cancerous"}:
+        summary = "cancerous"
+    elif categories == {"non_cancerous"}:
+        summary = "non_cancerous"
+    else:
+        summary = "both"
+    return summary, "|".join(panels)
+
+
 def parse_and_cache(file_path: str, sample_id: str, variant_type: str) -> int:
     """Parse the uploaded file once and write the normalized Parquet cache.
     Returns the number of rows ingested."""
@@ -201,6 +241,22 @@ def parse_and_cache(file_path: str, sample_id: str, variant_type: str) -> int:
     )
     df["pathogenicity_class"] = df.apply(_classify, axis=1)
 
+    # Cross-reference each variant's gene against the gene_panels reference
+    # table (cancerous/non-cancerous, per-panel). Loaded ONCE per upload —
+    # not once per row — since gene_panels is a small, mostly-static
+    # reference set (a few thousand rows) and this can run on 30-100k
+    # variant rows. If the DB is unreachable, upload still succeeds; the
+    # variant list just comes back with gene_category/gene_panels empty
+    # rather than the whole upload failing over a reference-data lookup.
+    if "gene" in df.columns:
+        try:
+            gene_lookup = get_gene_category_lookup()
+        except Exception:
+            gene_lookup = {}
+        classified = df["gene"].apply(lambda g: _classify_gene(g, gene_lookup))
+        df["gene_category"] = classified.apply(lambda t: t[0])
+        df["gene_panels"] = classified.apply(lambda t: t[1])
+
     # NOTE: rows are intentionally NOT deduplicated here — every row from the
     # source file (including multiple transcript/consequence annotations for
     # the same chrom/pos/ref/alt) is kept, per request. query_variants()
@@ -212,7 +268,8 @@ def parse_and_cache(file_path: str, sample_id: str, variant_type: str) -> int:
 
 
 def query_variants(sample_id, page=1, page_size=100, sort_by="pos", sort_dir="asc",
-                    class_filter=None, search=None, gene_filter=None):
+                    class_filter=None, search=None, gene_filter=None, gene_category_filter=None,
+                    panel_filter=None):
     path = _cache_path(sample_id)
     if not os.path.exists(path):
         return {"rows": [], "total": 0, "page": page, "page_size": page_size}
@@ -233,6 +290,17 @@ def query_variants(sample_id, page=1, page_size=100, sort_by="pos", sort_dir="as
     if gene_filter and "gene" in actual_columns:
         where.append("gene = ?")
         params.append(gene_filter)
+    if gene_category_filter and "gene_category" in actual_columns:
+        where.append("gene_category = ?")
+        params.append(gene_category_filter)
+    if panel_filter and "gene_panels" in actual_columns:
+        # gene_panels is pipe-joined (e.g. "Cardiac|Somatic") since a gene
+        # can match more than one panel — exact-token match via
+        # list_contains(string_split(...)) rather than a LIKE substring
+        # match, so a filter for "NDD" can't accidentally also match a
+        # differently-named panel that happens to contain "NDD".
+        where.append("list_contains(string_split(gene_panels, '|'), ?)")
+        params.append(panel_filter)
     if search:
         search_cols = [c for c in ("gene", "hgvsc", "rsid") if c in actual_columns]
         if search_cols:
@@ -278,16 +346,62 @@ def query_variants(sample_id, page=1, page_size=100, sort_by="pos", sort_dir="as
 
 
 def get_summary(sample_id):
-    """Powers the sidebar counts: total retained + per-class breakdown."""
+    """Powers the sidebar counts: total retained + per-class breakdown,
+    a gene_category breakdown (cancerous / non_cancerous / both /
+    unclassified), and a per-panel breakdown (Somatic, Hereditary,
+    Cardiac, etc.) — the last two only when gene_category/gene_panels
+    columns are present in this sample's cache."""
     path = _cache_path(sample_id)
     if not os.path.exists(path):
-        return {"total": 0, "classes": {}}
+        return {"total": 0, "classes": {}, "gene_categories": {}, "panels": []}
     con = duckdb.connect()
+
+    actual_columns = [
+        r[0] for r in con.execute(f"DESCRIBE SELECT * FROM read_parquet('{path}')").fetchall()
+    ]
+
     total = con.execute(f"SELECT COUNT(*) FROM read_parquet('{path}')").fetchone()[0]
     rows = con.execute(
         f"SELECT pathogenicity_class, COUNT(*) c FROM read_parquet('{path}') GROUP BY 1"
     ).fetchall()
-    return {"total": int(total), "classes": {r[0]: r[1] for r in rows}}
+
+    gene_categories = {}
+    panels = []
+    if "gene_category" in actual_columns:
+        cat_rows = con.execute(
+            f"""
+            SELECT COALESCE(gene_category, 'unclassified') AS cat, COUNT(*) c
+            FROM read_parquet('{path}') GROUP BY 1
+            """
+        ).fetchall()
+        gene_categories = {r[0]: r[1] for r in cat_rows}
+
+    if "gene_panels" in actual_columns:
+        # Each variant's gene_panels is pipe-joined (e.g. "Cardiac|Somatic")
+        # since one gene can legitimately match more than one panel — a
+        # variant with 2 matching panels is counted once under EACH panel
+        # here, same convention as the gene-level "both" category above.
+        panel_rows = con.execute(
+            f"""
+            SELECT panel, COUNT(*) c FROM (
+                SELECT UNNEST(string_split(gene_panels, '|')) AS panel
+                FROM read_parquet('{path}')
+                WHERE gene_panels IS NOT NULL AND gene_panels != ''
+            )
+            GROUP BY panel ORDER BY panel
+            """
+        ).fetchall()
+        panels = [
+            {"panel": r[0], "category": PANEL_CATEGORY.get(r[0], "non_cancerous"), "count": r[1]}
+            for r in panel_rows
+        ]
+
+    return {
+        "total": int(total),
+        "classes": {r[0]: r[1] for r in rows},
+        "gene_categories": gene_categories,
+        "panels": panels,
+    }
 
 
 def get_variant_detail(sample_id, variant_id):

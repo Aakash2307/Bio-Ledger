@@ -12,13 +12,15 @@ import { useEffect, useState, useCallback, useRef, useSyncExternalStore } from "
 const variantStore = {
   state: {
     sampleId: "",
-    summary: { total: 0, classes: {} },
+    summary: { total: 0, classes: {}, gene_categories: {}, panels: [] },
     rows: [],
     total: 0,
     page: 1,
     sortBy: "pos",
     sortDir: "asc",
     classFilter: null,
+    geneCategoryFilter: null,
+    panelFilter: null,
     search: "",
     selected: null,
   },
@@ -89,6 +91,19 @@ const CLASS_META = {
   N: { label: "No ClinVar Data", color: T.textFaint },
 };
 const CLASS_ORDER = ["A", "B", "C", "D", "M", "N"];
+
+// Gene panel cross-reference categories, matching the gene_category field
+// variant_parser.py now attaches per row (looked up against gene_panels).
+// Colors intentionally echo the Gene Panel page's own palette: pink for
+// cancerous, blue for non-cancerous — same meaning, same hue, wherever a
+// gene's category shows up in the app.
+const GENE_CATEGORY_META = {
+  cancerous: { label: "Cancerous", color: "#DB2777" },
+  non_cancerous: { label: "Non-Cancerous", color: "#2563EB" },
+  both: { label: "Both", color: "#7C5CA6" },
+  unclassified: { label: "Unclassified", color: T.na },
+};
+const GENE_CATEGORY_ORDER = ["cancerous", "non_cancerous", "both", "unclassified"];
 
 const DETAIL_TABS = [
   "Overview",
@@ -200,10 +215,17 @@ function splitPredictionValue(value) {
   return { main: formatScoreValue(value), sub: null };
 }
 
+// Panel names from gene_panels arrive pipe-joined (e.g.
+// "Cardiac|Somatic"). Split + prettify for the badge tooltip / Details tab.
+function formatGenePanels(raw) {
+  if (!raw) return null;
+  return String(raw).split("|").filter(Boolean).join(", ");
+}
+
 export default function VariantVisualization() {
   // Persisted across route navigation (see variantStore above).
   const persisted = useSyncExternalStore(variantStore.subscribe, variantStore.get);
-  const { sampleId, summary, rows, total, page, sortBy, sortDir, classFilter, search, selected } = persisted;
+  const { sampleId, summary, rows, total, page, sortBy, sortDir, classFilter, geneCategoryFilter, panelFilter, search, selected } = persisted;
   const setSampleId = makeStoreSetter("sampleId");
   const setSummary = makeStoreSetter("summary");
   const setRows = makeStoreSetter("rows");
@@ -212,6 +234,8 @@ export default function VariantVisualization() {
   const setSortBy = makeStoreSetter("sortBy");
   const setSortDir = makeStoreSetter("sortDir");
   const setClassFilter = makeStoreSetter("classFilter");
+  const setGeneCategoryFilter = makeStoreSetter("geneCategoryFilter");
+  const setPanelFilter = makeStoreSetter("panelFilter");
   const setSearch = makeStoreSetter("search");
   const setSelected = makeStoreSetter("selected");
 
@@ -248,6 +272,8 @@ export default function VariantVisualization() {
       page, page_size: PAGE_SIZE, sort_by: sortBy, sort_dir: sortDir,
     });
     if (classFilter) params.set("class", classFilter);
+    if (geneCategoryFilter) params.set("gene_category", geneCategoryFilter);
+    if (panelFilter) params.set("gene_panel", panelFilter);
     if (search) params.set("search", search);
 
     try {
@@ -263,7 +289,7 @@ export default function VariantVisualization() {
     } finally {
       if (requestId === requestIdRef.current) setLoading(false);
     }
-  }, [sampleId, page, sortBy, sortDir, classFilter, search]);
+  }, [sampleId, page, sortBy, sortDir, classFilter, geneCategoryFilter, panelFilter, search]);
 
   useEffect(() => { loadSummary(); }, [loadSummary]);
   useEffect(() => { loadRows(); }, [loadRows]);
@@ -335,13 +361,15 @@ export default function VariantVisualization() {
     requestIdRef.current++;
 
     setSampleId("");
-    setSummary({ total: 0, classes: {} });
+    setSummary({ total: 0, classes: {}, gene_categories: {}, panels: [] });
     setRows([]);
     setTotal(0);
     setPage(1);
     setSortBy("pos");
     setSortDir("asc");
     setClassFilter(null);
+    setGeneCategoryFilter(null);
+    setPanelFilter(null);
     setSearch("");
     setSelected(null);
   };
@@ -356,6 +384,9 @@ export default function VariantVisualization() {
   const gridCols = showClinSig ? GRID_COLS_WITH_CLINSIG : GRID_COLS_DEFAULT;
 
   const classTotal = CLASS_ORDER.reduce((sum, k) => sum + (summary.classes?.[k] || 0), 0) || 1;
+  const geneCategoryTotal = GENE_CATEGORY_ORDER.reduce((sum, k) => sum + (summary.gene_categories?.[k] || 0), 0) || 1;
+  const hasGeneCategoryData = Object.keys(summary.gene_categories || {}).length > 0;
+  const hasPanelData = (summary.panels || []).length > 0;
 
   return (
     <div style={{ fontFamily: T.sans, color: T.text }}>
@@ -414,6 +445,125 @@ export default function VariantVisualization() {
             Clear
           </button>
         </div>
+
+        {/* Gene panel cross-reference lane: same lane/chip pattern as the
+            ACMG strip below, but for cancerous/non-cancerous/both/
+            unclassified — driven by gene_category, which variant_parser.py
+            attaches by matching each variant's gene against the gene_panels
+            reference table. Shown first, ahead of the ACMG lane. Only
+            rendered once this sample actually has that data (older cached
+            samples parsed before this existed won't have the column, and
+            hasGeneCategoryData stays false). */}
+        {hasGeneCategoryData && (
+          <>
+            <div style={{ fontSize: 11, fontWeight: 600, color: T.textFaint, marginBottom: 8 }}>
+              Gene panel match
+            </div>
+            <div style={{ display: "flex", height: 10, borderRadius: 5, overflow: "hidden", marginBottom: 10 }}>
+              {GENE_CATEGORY_ORDER.map((key) => {
+                const count = summary.gene_categories?.[key] || 0;
+                const meta = GENE_CATEGORY_META[key];
+                const isDimmed = geneCategoryFilter && geneCategoryFilter !== key;
+                if (count === 0) return null;
+                return (
+                  <div
+                    key={key}
+                    onClick={() => { setGeneCategoryFilter(geneCategoryFilter === key ? null : key); setPage(1); }}
+                    title={`${meta.label}: ${count.toLocaleString()}`}
+                    style={{
+                      width: `${(count / geneCategoryTotal) * 100}%`,
+                      background: meta.color,
+                      opacity: isDimmed ? 0.25 : 1,
+                      cursor: key === "unclassified" ? "default" : "pointer",
+                      minWidth: count > 0 ? 2 : 0,
+                      transition: "opacity 0.15s",
+                    }}
+                  />
+                );
+              })}
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+              {GENE_CATEGORY_ORDER.filter((k) => (summary.gene_categories?.[k] || 0) > 0).map((key) => {
+                const meta = GENE_CATEGORY_META[key];
+                const active = geneCategoryFilter === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => { setGeneCategoryFilter(active ? null : key); setPage(1); }}
+                    style={{
+                      ...btnBase,
+                      display: "flex", alignItems: "center", gap: 7,
+                      padding: "6px 11px",
+                      background: active ? T.accentDim : "transparent",
+                      border: `1px solid ${active ? T.accent : T.borderSoft}`,
+                      color: active ? T.text : T.textMuted,
+                      fontSize: 12.5,
+                    }}
+                  >
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: meta.color, flexShrink: 0 }} />
+                    {meta.label}
+                    <span style={{ fontFamily: T.mono, fontWeight: 700, color: active ? T.text : T.textFaint }}>
+                      {(summary.gene_categories?.[key] || 0).toLocaleString()}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Per-panel breakdown: which specific panel(s) within
+                Cancerous/Non-Cancerous each gene matched — Somatic,
+                Hereditary under Cancerous; Cardiac, NDD, etc under
+                Non-Cancerous. A separate section below the category lane
+                above, since a variant can belong to more than one panel
+                at once (counted under each). Uses hasPanelData so it's
+                skipped if this sample's cache predates the gene_panels
+                column entirely. */}
+            {hasPanelData && (
+              <>
+                <div style={{ fontSize: 11, fontWeight: 600, color: T.textFaint, margin: "4px 0 8px" }}>
+                  Panel breakdown
+                </div>
+                {["cancerous", "non_cancerous"].map((cat) => {
+                  const panelsInCat = summary.panels.filter((p) => p.category === cat && p.count > 0);
+                  if (panelsInCat.length === 0) return null;
+                  const catMeta = GENE_CATEGORY_META[cat];
+                  return (
+                    <div key={cat} style={{ marginBottom: 10 }}>
+                      <div style={{ fontSize: 10.5, fontWeight: 700, color: catMeta.color, marginBottom: 6 }}>
+                        {catMeta.label}
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                        {panelsInCat.map((p) => {
+                          const active = panelFilter === p.panel;
+                          return (
+                            <button
+                              key={p.panel}
+                              onClick={() => { setPanelFilter(active ? null : p.panel); setPage(1); }}
+                              style={{
+                                ...btnBase,
+                                display: "flex", alignItems: "center", gap: 6,
+                                padding: "5px 10px",
+                                background: active ? `${catMeta.color}18` : "transparent",
+                                border: `1px solid ${active ? catMeta.color : T.borderSoft}`,
+                                color: active ? T.text : T.textMuted,
+                                fontSize: 12,
+                              }}
+                            >
+                              {p.panel}
+                              <span style={{ fontFamily: T.mono, fontWeight: 700, color: active ? T.text : T.textFaint }}>
+                                {p.count.toLocaleString()}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </>
+        )}
 
         {/* Proportional lane: each class's share of the total, in ACMG order */}
         <div style={{ display: "flex", height: 10, borderRadius: 5, overflow: "hidden", marginBottom: 10 }}>
@@ -633,6 +783,7 @@ function t_placeholder(tab) {
 function OverviewTab({ variant }) {
   const vf = variant.vf_pct != null ? Number(variant.vf_pct) : null;
   const depth = variant.depth != null ? Math.round(variant.depth) : null;
+  const geneCatMeta = variant.gene_category ? GENE_CATEGORY_META[variant.gene_category] : null;
 
   return (
     <div>
@@ -655,6 +806,28 @@ function OverviewTab({ variant }) {
         <DetailLine label="rsID" value={variant.rsid} />
       </div>
 
+      {geneCatMeta && (
+        <>
+          <SectionLabel>Gene panel match</SectionLabel>
+          <div style={{ marginBottom: 26 }}>
+            <span
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px",
+                borderRadius: 999, fontSize: 12, fontWeight: 700, color: geneCatMeta.color,
+                background: `${geneCatMeta.color}18`, border: `1px solid ${geneCatMeta.color}40`,
+              }}
+            >
+              {geneCatMeta.label}
+            </span>
+            {variant.gene_panels && (
+              <div style={{ fontSize: 12, color: T.textMuted, marginTop: 8 }}>
+                Matched panel{formatGenePanels(variant.gene_panels).includes(",") ? "s" : ""}: {formatGenePanels(variant.gene_panels)}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
       <SectionLabel>Predicted impact</SectionLabel>
       <PredictionRadar variant={variant} />
     </div>
@@ -663,11 +836,12 @@ function OverviewTab({ variant }) {
 
 // Everything else the pipeline provides for this variant that ISN'T
 // already shown in the Overview tab. Overview covers: depth/VF% (Reads),
-// chrom/pos/ref/alt/VF%/rsID (Variant Call), and SIFT/PolyPhen/
-// AlphaMissense/REVEL/CADD (Predicted Impact) — so this tab intentionally
-// excludes all of those and shows the remaining annotation fields instead:
-// gene symbol, consequence/impact, transcript-level HGVS notation,
-// population frequency, ClinVar significance, and ACMG classification.
+// chrom/pos/ref/alt/VF%/rsID (Variant Call), gene_category/gene_panels
+// (Gene panel match), and SIFT/PolyPhen/AlphaMissense/REVEL/CADD
+// (Predicted Impact) — so this tab intentionally excludes all of those and
+// shows the remaining annotation fields instead: gene symbol,
+// consequence/impact, transcript-level HGVS notation, population
+// frequency, ClinVar significance, and ACMG classification.
 // "variant_id" and "pathogenicity_class" are also excluded — they're
 // internal, app-computed values (a composite key and this app's own A-N
 // filter bucket), not columns the pipeline itself produced, so they don't
@@ -677,6 +851,7 @@ const OVERVIEW_FIELDS = new Set([
   "sift", "polyphen", "alphamissense_class", "alphamissense_pathogenicity",
   "revel_score", "cadd_phred",
   "variant_id", "pathogenicity_class",
+  "gene_category", "gene_panels",
 ]);
 
 // Everything else the pipeline provides for this variant — dynamically

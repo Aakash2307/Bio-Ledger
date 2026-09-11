@@ -89,6 +89,33 @@ def get_gene_panel_stats() -> dict:
     }
 
 
+def get_gene_category_lookup() -> dict:
+    """
+    Loads the entire gene_panels table into a dict keyed by uppercased gene
+    symbol, for use by variant_parser.py to classify each variant's gene as
+    cancerous/non_cancerous/both — one query per upload, not one per row.
+
+    Returns: { "TP53": [{"category": "cancerous", "panel": "Somatic"}, ...], ... }
+
+    Deliberately loaded in full rather than queried per gene: gene_panels
+    is reference data (a few thousand rows), so this is cheap and avoids
+    thousands of individual lookups against a variant file's gene column.
+    """
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT gene_symbol, category, panel FROM gene_panels")
+            rows = cur.fetchall()
+    finally:
+        conn.close()
+
+    lookup: dict = {}
+    for row in rows:
+        key = row["gene_symbol"].strip().upper()
+        lookup.setdefault(key, []).append({"category": row["category"], "panel": row["panel"]})
+    return lookup
+
+
 def get_genes(
     category: str | None = None,
     panel: str | None = None,

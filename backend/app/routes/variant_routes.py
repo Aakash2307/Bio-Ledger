@@ -3,7 +3,7 @@ app/routes/variant_routes.py  (FastAPI version)
 
 Endpoints:
   POST /api/variants/upload                    -> ingest a sample's xlsx/csv, cache it
-  GET  /api/variants/{sample_id}/summary        -> counts per pathogenicity class
+  GET  /api/variants/{sample_id}/summary        -> counts per pathogenicity class + gene category
   GET  /api/variants/{sample_id}                -> paginated / filtered / sorted rows
   GET  /api/variants/{sample_id}/{variant_id}   -> full row for the detail panel
 
@@ -55,11 +55,14 @@ def variant_list(
     class_: str | None = Query(None, alias="class"),
     search: str | None = None,
     gene: str | None = None,
+    gene_category: str | None = Query(None, pattern="^(cancerous|non_cancerous|both)$"),
+    gene_panel: str | None = Query(None, alias="gene_panel"),
 ):
     return query_variants(
         sample_id, page=page, page_size=page_size,
         sort_by=sort_by, sort_dir=sort_dir,
         class_filter=class_, search=search, gene_filter=gene,
+        gene_category_filter=gene_category, panel_filter=gene_panel,
     )
 
 

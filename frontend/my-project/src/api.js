@@ -279,3 +279,49 @@ export async function uploadVariantFile(file, { includeLowImpact = true } = {}) 
   }
   return res.json();
 }
+
+
+// ─── Gene Panel ───────────────────────────────────────────────────────────────
+// Append these to the existing api.js (after the Variant Visualization section).
+// Uses the same BASE_URL already defined at the top of the file.
+
+export async function uploadGenePanels(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch(`${BASE_URL}/gene-panels/upload`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to upload gene panel file");
+  }
+  return res.json();
+}
+
+export async function getGenePanelStats() {
+  const res = await fetch(`${BASE_URL}/gene-panels/stats`);
+  if (!res.ok) throw new Error("Failed to fetch gene panel stats");
+  return res.json();
+}
+
+export async function getGenes({ category, panel, search, page = 1, pageSize = 50 } = {}) {
+  const params = new URLSearchParams({ page, page_size: pageSize });
+  if (category) params.set("category", category);
+  if (panel) params.set("panel", panel);
+  if (search) params.set("search", search);
+
+  const res = await fetch(`${BASE_URL}/gene-panels/genes?${params.toString()}`);
+  if (!res.ok) throw new Error("Failed to fetch genes");
+  return res.json();
+}
+
+export async function getMultiPanelGenes({ search, page = 1, pageSize = 50 } = {}) {
+  const params = new URLSearchParams({ page, page_size: pageSize });
+  if (search) params.set("search", search);
+
+  const res = await fetch(`${BASE_URL}/gene-panels/genes/multi-panel?${params.toString()}`);
+  if (!res.ok) throw new Error("Failed to fetch multi-panel genes");
+  return res.json();
+}

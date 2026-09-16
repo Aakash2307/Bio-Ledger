@@ -4,9 +4,9 @@ from database import create_tables, add_report_automation_schema
 from app.routes import patient_routes, sample_routes, dashboard_routes, report_routes
 from app.services.report_worker import start_worker
 from app.routes import variant_routes
+from app.routes import gene_panel_routes
 
-
-app = FastAPI(title="Patient Portal API")
+app = FastAPI(title="Backend for Bioledger")
 
 app.add_middleware(
     CORSMiddleware,
@@ -26,6 +26,7 @@ app.include_router(sample_routes.router)
 app.include_router(dashboard_routes.router)
 app.include_router(report_routes.router)
 app.include_router(variant_routes.router)
+app.include_router(gene_panel_routes.router)
 
 # Start the single-worker report generation queue
 start_worker()

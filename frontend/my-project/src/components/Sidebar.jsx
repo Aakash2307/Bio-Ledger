@@ -13,10 +13,6 @@ const navItems = [
   { label: "Reports",    icon: "📄", path: "/reports"    },
   { label: "Variant Analysis", icon: "🔍", path: "/variants"   },
   { label: "Settings",   icon: "⚙",  path: "/settings"   },
-  { label: "Gene Panel", icon: "🧬", path: "/gene-panel" },
-  { label: "Settings",   icon: "⚙",  path: "/settings"   }
-  
-
 ];
 
 export default function Sidebar({ onSignOut }) {

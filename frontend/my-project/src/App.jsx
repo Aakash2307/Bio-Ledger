@@ -13,7 +13,9 @@ import SplashScreen         from "./pages/SplashScreen";
 import Reports              from "./pages/Reports";
 import ReportAutomation     from "./pages/ReportAutomation";
 import BioLedgerSpinner     from "./pages/BioledgerSpinner";
-import VariantVisualization  from "./pages/VariantVisualization";
+import VariantVisualization from "./pages/VariantVisualization";
+
+import GenePanel            from "./pages/Genepanel";
 
 
 
@@ -38,6 +40,7 @@ function App() {
             <Route path="/sequencing/report-automation"  element={<ReportAutomation />} />
             <Route path="/variants"                      element={<VariantVisualization />} />
             <Route path="/spinner"                       element={<BioLedgerSpinner />} />
+            <Route path="/gene-panel"                    element={<GenePanel />} />
             
           </Routes>
         </Layout>

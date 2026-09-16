@@ -80,10 +80,13 @@ const T = {
   mono: "'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
 };
 
+// ACMG class colors. Chosen independently from the SIFT/PolyPhen/etc.
+// severity palette above (T.danger/warn/safe) so re-coloring a class here
+// never accidentally shifts the meaning of a predictor score elsewhere.
 const CLASS_META = {
-  A: { label: "Pathogenic", color: T.danger },
-  B: { label: "Likely Pathogenic", color: T.warn },
-  C: { label: "Uncertain Significance", color: "#3E6FA6" },
+  A: { label: "Pathogenic", color: "#D32F2F" },
+  B: { label: "Likely Pathogenic", color: "#7B1E3A" },
+  C: { label: "Uncertain Significance", color: "#E2711D" },
   D: { label: "Benign / Likely Benign", color: T.safe },
   M: { label: "Mixed / Conflicting", color: "#7C5CA6" },
   N: { label: "No ClinVar Data", color: T.textFaint },
@@ -93,6 +96,7 @@ const CLASS_ORDER = ["A", "B", "C", "D", "M", "N"];
 const DETAIL_TABS = [
   "Overview",
   "Details",
+  "Info",
   "Variant Description",
   "Flagging",
   "Viewer",
@@ -617,6 +621,8 @@ function VariantDetailPanel({ variant }) {
         <OverviewTab variant={variant} />
       ) : tab === "Details" ? (
         <DetailsTab variant={variant} />
+      ) : tab === "Info" ? (
+        <InfoTab variant={variant} />
       ) : (
         <div style={{ textAlign: "center", color: T.textFaint, fontSize: 13, padding: "48px 12px" }}>
           {t_placeholder(tab)}
@@ -653,6 +659,13 @@ function OverviewTab({ variant }) {
         <DetailLine label="Change" value={variant.ref && variant.alt ? `${variant.ref} > ${variant.alt}` : null} />
         <DetailLine label="VF% (this sample)" value={vf != null ? `${vf.toFixed(1)}%` : null} />
         <DetailLine label="rsID" value={variant.rsid} />
+        {/* MANE Select transcript. Lives here rather than on the radar:
+            it's a reference identifier, not a pathogenicity score, so it
+            never had a meaningful "severity" to plot and only diluted the
+            shape the other five axes trace. */}
+        <DetailLine label="NM_value" value={variant.mane_select ?? variant.MANE_SELECT} />
+        <DetailLine label="HGVSc" value={variant.hgvsc ?? variant.HGVSc} />
+        <DetailLine label="HGVSp" value={variant.hgvsp ?? variant.HGVSp} />
       </div>
 
       <SectionLabel>Predicted impact</SectionLabel>
@@ -662,6 +675,7 @@ function OverviewTab({ variant }) {
 }
 
 // Everything else the pipeline provides for this variant that ISN'T
+<<<<<<< Updated upstream
 // already shown in the Overview tab. Overview covers: depth/VF% (Reads),
 // chrom/pos/ref/alt/VF%/rsID (Variant Call), and SIFT/PolyPhen/
 // AlphaMissense/REVEL/CADD (Predicted Impact) — so this tab intentionally
@@ -673,10 +687,31 @@ function OverviewTab({ variant }) {
 // filter bucket), not columns the pipeline itself produced, so they don't
 // belong in a "raw data" view.
 const OVERVIEW_FIELDS = new Set([
+=======
+// already shown somewhere more specific. Overview covers: depth/VF%
+// (Reads), chrom/pos/ref/alt/HGVSc/HGVSp/VF%/rsID/MANE Select (Variant
+// Call), gene_category/gene_panels (Gene panel match), and SIFT/PolyPhen/
+// AlphaMissense/REVEL/CADD (Predicted Impact). The Info tab covers the raw
+// VCF INFO field on its own. The compact list already covers ACMG
+// classification and gene symbol, and Details isn't the right place to
+// re-surface the raw ClinVar string either — so all of those are excluded
+// here too. "variant_id" and "pathogenicity_class" are also excluded —
+// they're internal, app-computed values (a composite key and this app's
+// own A-N filter bucket), not columns the pipeline itself produced, so
+// they don't belong in a "raw data" view.
+const DETAILS_EXCLUDED_FIELDS = new Set([
+>>>>>>> Stashed changes
   "chrom", "pos", "ref", "alt", "depth", "vf_pct", "rsid",
+  "hgvsc", "HGVSc", "hgvsp", "HGVSp",
   "sift", "polyphen", "alphamissense_class", "alphamissense_pathogenicity",
-  "revel_score", "cadd_phred",
+  "revel_score", "cadd_phred", "mane_select", "MANE_SELECT",
   "variant_id", "pathogenicity_class",
+<<<<<<< Updated upstream
+=======
+  "gene_category", "gene_panels",
+  "acmg_classification", "gene", "clin_sig",
+  "info", "INFO", "Info",
+>>>>>>> Stashed changes
 ]);
 
 // Everything else the pipeline provides for this variant — dynamically
@@ -687,7 +722,7 @@ const OVERVIEW_FIELDS = new Set([
 // here without needing this component touched again.
 function DetailsTab({ variant }) {
   const entries = Object.entries(variant)
-    .filter(([key]) => !OVERVIEW_FIELDS.has(key))
+    .filter(([key]) => !DETAILS_EXCLUDED_FIELDS.has(key))
     .sort(([a], [b]) => a.localeCompare(b));
 
   if (entries.length === 0) {
@@ -707,6 +742,55 @@ function DetailsTab({ variant }) {
           </div>
           <div style={{ fontSize: 12.5, fontWeight: 600, color: T.text, fontFamily: T.mono, wordBreak: "break-word" }}>
             {formatScoreValue(value)}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// The raw VCF INFO column arrives as either a semicolon-separated
+// "KEY=value;KEY2=value2;FLAG_KEY" string (standard VCF INFO syntax — a
+// bare key with no "=" is a flag, shown as "Present") or, if the backend
+// has already parsed it, a plain object. Either way this normalizes it
+// into a flat list of [key, value] pairs for display.
+function parseInfoField(raw) {
+  if (raw == null || raw === "" || raw === "-") return [];
+  if (typeof raw === "object") {
+    return Object.entries(raw).map(([k, v]) => [k, formatScoreValue(v)]);
+  }
+  return String(raw)
+    .split(";")
+    .map((pair) => pair.trim())
+    .filter(Boolean)
+    .map((pair) => {
+      const eqIdx = pair.indexOf("=");
+      if (eqIdx === -1) return [pair, "Present"];
+      return [pair.slice(0, eqIdx).trim(), formatScoreValue(pair.slice(eqIdx + 1).trim())];
+    });
+}
+
+function InfoTab({ variant }) {
+  const raw = variant.info ?? variant.INFO ?? variant.Info;
+  const entries = parseInfoField(raw);
+
+  if (entries.length === 0) {
+    return (
+      <div style={{ textAlign: "center", color: T.textFaint, fontSize: 13, padding: "36px 0" }}>
+        No INFO field data for this variant.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3px 20px" }}>
+      {entries.map(([key, value], idx) => (
+        <div key={`${key}-${idx}`} style={{ padding: "6px 0", borderBottom: `1px solid ${T.borderSoft}` }}>
+          <div style={{ fontSize: 9.5, fontWeight: 700, color: T.textFaint, letterSpacing: 0.3 }}>
+            {key.replace(/_/g, " ")}
+          </div>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: T.text, fontFamily: T.mono, wordBreak: "break-word" }}>
+            {value}
           </div>
         </div>
       ))}
@@ -760,9 +844,11 @@ function FractionGauge({ value }) {
 
 // Circular arrangement of in-silico prediction scores. Fields we don't
 // parse yet are shown as N/A.
-// Uses the 6 columns requested from the new pipeline export: PolyPhen,
-// SIFT, AlphaMissense_class, AlphaMissense_pathogenicity, REVEL_score, and
-// CADD_phred.
+// Five axes: SIFT, PolyPhen, a single combined AlphaMissense call, REVEL,
+// and CADD — every one of them an actual pathogenicity predictor, so the
+// shape the polygon traces means something uniformly. (MANE Select used to
+// sit here as a 6th axis, but a transcript ID has no severity to plot; it
+// now lives in the Overview "Variant call" grid as NM_value.)
 // Severity color scale shared by every predictor below: red leans
 // damaging/pathogenic, green leans tolerated/benign, amber is ambiguous /
 // borderline, and slate means no call was made for this variant.
@@ -812,25 +898,58 @@ function predictorSeverity(key, rawValue) {
   }
 }
 
-// True "web view" radar/spider chart — six axes, one per predictor. Shape
-// area gives an at-a-glance read of overall impact severity; each vertex is
-// individually color-coded by that predictor's own severity so no single
-// axis gets lost in an averaged shape. Labels sit OUTSIDE the plot area at
-// fixed short abbreviations (not the raw values) specifically to avoid
-// overlap — exact values live directly under the label instead, where
-// there's no positioning constraint on text length.
+// AlphaMissense reports two halves of one call — a categorical class
+// ("likely_pathogenic") and the underlying continuous score
+// (0.87) — which used to occupy two separate radar axes. Merged into one
+// here: the score is the more precise signal so it drives severity when
+// present, falling back to the class label if the pipeline only supplied
+// one of the two. Display combines both, e.g. "Likely Pathogenic (0.87)".
+function combineAlphaMissense(variant) {
+  const cls = variant.alphamissense_class;
+  const path = variant.alphamissense_pathogenicity;
+  const hasCls = cls != null && cls !== "" && cls !== "-";
+  const hasPath = path != null && path !== "" && path !== "-";
+
+  const severity = hasPath
+    ? predictorSeverity("alphamissense_pathogenicity", path)
+    : predictorSeverity("alphamissense_class", cls);
+
+  let valueText;
+  if (hasCls && hasPath) {
+    valueText = `${splitPredictionValue(cls).main} (${formatScoreValue(path)})`;
+  } else if (hasCls) {
+    valueText = splitPredictionValue(cls).main;
+  } else if (hasPath) {
+    valueText = formatScoreValue(path);
+  } else {
+    valueText = "N/A";
+  }
+  return { severity, valueText };
+}
+
+// True "web view" radar/spider chart — five axes. Shape area gives an
+// at-a-glance read of overall impact severity; each vertex is individually
+// color-coded by its own severity so no single axis gets lost in an
+// averaged shape. Labels sit OUTSIDE the plot area at fixed short
+// abbreviations (not the raw values) specifically to avoid overlap —
+// exact values live directly under the label instead, where there's no
+// positioning constraint on text length.
+//
+// Axis types:
+//  - "field": a straightforward pipeline column, scored via
+//    predictorSeverity.
+//  - "alphamissense": the merged class+score call above.
 const RADAR_AXES = [
-  { key: "sift", short: "SIFT" },
-  { key: "polyphen", short: "PolyPhen" },
-  { key: "alphamissense_class", short: "AM Class" },
-  { key: "alphamissense_pathogenicity", short: "AM Path." },
-  { key: "revel_score", short: "REVEL" },
-  { key: "cadd_phred", short: "CADD" },
+  { key: "sift", short: "SIFT", type: "field" },
+  { key: "polyphen", short: "PolyPhen", type: "field" },
+  { key: "alphamissense", short: "AlphaMissense", type: "alphamissense" },
+  { key: "revel_score", short: "REVEL", type: "field" },
+  { key: "cadd_phred", short: "CADD", type: "field" },
 ];
 
 // Severity -> how far out on its axis the vertex sits (0-1 of max radius).
 // "na" sits just barely off-center rather than at 0, so a variant with no
-// predictions at all still traces a visible (tiny) hexagon instead of a
+// predictions at all still traces a visible (tiny) pentagon instead of a
 // single invisible point.
 const SEVERITY_MAGNITUDE = { danger: 1, warn: 0.62, safe: 0.3, na: 0.08 };
 
@@ -841,16 +960,31 @@ function PredictionRadar({ variant }) {
   const n = RADAR_AXES.length;
 
   const axisData = RADAR_AXES.map((axis, i) => {
-    const rawValue = variant[axis.key];
-    const severity = predictorSeverity(axis.key, rawValue);
     const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
+
+    let severity, valueText;
+    if (axis.type === "alphamissense") {
+      const combined = combineAlphaMissense(variant);
+      severity = combined.severity;
+      valueText = combined.valueText;
+    } else {
+      const rawValue = variant[axis.key];
+      severity = predictorSeverity(axis.key, rawValue);
+      const { main, sub } = splitPredictionValue(rawValue);
+      valueText = sub ? `${main} (${sub})` : main;
+    }
+
+    const dotColor = SEVERITY_COLORS[severity];
+    const textColor = severity === "na" ? T.na : SEVERITY_COLORS[severity];
     const magnitude = SEVERITY_MAGNITUDE[severity];
-    const { main, sub } = splitPredictionValue(rawValue);
+
     return {
       ...axis,
       severity,
+      valueText,
+      dotColor,
+      textColor,
       angle,
-      valueText: sub ? `${main} (${sub})` : main,
       vertex: { x: center + Math.cos(angle) * maxRadius * magnitude, y: center + Math.sin(angle) * maxRadius * magnitude },
       edge: { x: center + Math.cos(angle) * maxRadius, y: center + Math.sin(angle) * maxRadius },
       labelPos: { x: center + Math.cos(angle) * (maxRadius + 32), y: center + Math.sin(angle) * (maxRadius + 32) },
@@ -879,7 +1013,7 @@ function PredictionRadar({ variant }) {
       ))}
       <polygon points={polygonPoints} fill="rgba(11,110,100,0.10)" stroke={T.accent} strokeWidth="1.5" strokeLinejoin="round" />
       {axisData.map((a) => (
-        <circle key={a.key} cx={a.vertex.x} cy={a.vertex.y} r="3.5" fill={SEVERITY_COLORS[a.severity]} stroke={T.surfaceSunken} strokeWidth="1.2" />
+        <circle key={a.key} cx={a.vertex.x} cy={a.vertex.y} r="3.5" fill={a.dotColor} stroke={T.surfaceSunken} strokeWidth="1.2" />
       ))}
       {axisData.map((a) => {
         const cos = Math.cos(a.angle);
@@ -889,7 +1023,7 @@ function PredictionRadar({ variant }) {
             <tspan x={a.labelPos.x} dy="-4" fontSize="9.5" fontWeight="700" fill={T.textFaint}>
               {a.short}
             </tspan>
-            <tspan x={a.labelPos.x} dy="13" fontSize="12" fontWeight="700" fill={a.severity === "na" ? T.na : SEVERITY_COLORS[a.severity]} fontFamily={T.mono}>
+            <tspan x={a.labelPos.x} dy="13" fontSize="11" fontWeight="700" fill={a.textColor} fontFamily={T.mono}>
               {a.valueText}
             </tspan>
           </text>

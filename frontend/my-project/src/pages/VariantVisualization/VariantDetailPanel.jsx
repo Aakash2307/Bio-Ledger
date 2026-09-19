@@ -195,6 +195,10 @@ const DETAILS_EXCLUDED_FIELDS = new Set([
   "gene_category", "gene_panels",
   "acmg_classification", "gene", "clin_sig",
   "info", "INFO", "Info",
+  // Consequence and variant type are already shown in the compact list —
+  // dropped from the Details tab (Variant Effects / Additional Details
+  // respectively) so they aren't duplicated here.
+  "consequence", "varient_type",
 ]);
 
 // Fields dropped from the Details tab entirely, regardless of section.
@@ -208,9 +212,9 @@ const DETAILS_EXCLUDED_FIELDS_NORMALIZED = new Set([
   // Variant Identity: HGNC ID / Symbol source
   "hgncid", "symbolsource",
   // Variant Effects: Amino acids / APPRIS / CADD raw / cDNA position /
-  // CDS position / ClinPred pred / Codons
-  "aminoacids", "appris", "caddraw", "cdnaposition", "cdsposition",
-  "clinpredpred", "codons",
+  // CDS position / Codons. (ClinPred pred used to be dropped here too, but
+  // now lives in the In silico values section instead.)
+  "aminoacids", "appris", "caddraw", "cdnaposition", "cdsposition", "codons",
 ]);
 
 // Renames a handful of raw field names to clearer labels on the Details
@@ -247,20 +251,33 @@ const DETAIL_SECTIONS = [
   },
   {
     title: "Variant Effects",
-    // appris/cdnaposition/cdsposition/codons/aminoacids/caddraw/clinpredpred
-    // removed here — dropped entirely via DETAILS_EXCLUDED_FIELDS_NORMALIZED
-    // rather than just re-sectioned.
+    // appris/cdnaposition/cdsposition/codons/aminoacids/caddraw removed
+    // here — dropped entirely via DETAILS_EXCLUDED_FIELDS_NORMALIZED.
+    // consequence removed — dropped entirely via DETAILS_EXCLUDED_FIELDS
+    // (already shown in the compact list). The pathogenicity-predictor
+    // fields (MutationTaster/MutationAssessor/FATHMM/PROVEAN/MetaLR/
+    // DEOGEN2/ClinPred preds, SpliceAI_DP_* scores) moved out to the new
+    // "In silico values" section below rather than living here too.
     keys: new Set([
-      "consequence", "impact", "exon", "intron",
+      "impact", "exon", "intron",
       "proteinposition", "strand", "distance", "motifname",
       "motifpos", "motifscorechange", "tsl", "hgvsoffset", "maneplusclinical", "location",
-      "deogen2pred", "fathmmpred", "lrtpred", "metalrpred",
-      "mutationassessorpred", "mutationtasterpred", "proveanpred",
-      "spliceaidpag", "spliceaidpal", "spliceaidpdg", "spliceaidpdl",
+      "lrtpred",
       "spliceaidsag", "spliceaidsal", "spliceaidsdg", "spliceaidsdl", "spliceaisymbol",
       "gnomadaf", "gnomadeafraf", "gnomadeamraf", "gnomadeasjaf", "gnomadeeasaf",
       "gnomadefinaf", "gnomadenfeaf", "gnomadesasaf", "af1000g", "indgenomeaf",
       "transcriptionfactors",
+    ]),
+  },
+  {
+    title: "In silico values",
+    // Pathogenicity-predictor calls and SpliceAI donor/acceptor-gain/loss
+    // scores — kept together here rather than scattered across Variant
+    // Effects (or, for ClinPred pred, dropped entirely as it used to be).
+    keys: new Set([
+      "mutationtasterpred", "mutationassessorpred", "fathmmpred", "proveanpred",
+      "metalrpred", "deogen2pred", "clinpredpred",
+      "spliceaidpag", "spliceaidpal", "spliceaidpdg", "spliceaidpdl",
     ]),
   },
   {

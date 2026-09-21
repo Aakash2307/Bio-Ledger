@@ -4,7 +4,6 @@ import { T, btnBase, GENE_CATEGORY_META } from "./variantTheme";
 const DETAIL_TABS = [
   "Overview",
   "Details",
-  "Info",
   "Variant Description",
   "Flagging",
   "Viewer",
@@ -99,8 +98,6 @@ export default function VariantDetailPanel({ variant }) {
         <OverviewTab variant={variant} />
       ) : tab === "Details" ? (
         <DetailsTab variant={variant} />
-      ) : tab === "Info" ? (
-        <InfoTab variant={variant} />
       ) : (
         <div style={{ textAlign: "center", color: T.textFaint, fontSize: 13, padding: "48px 12px" }}>
           {tab} — coming soon.
@@ -144,6 +141,10 @@ function OverviewTab({ variant }) {
         <DetailLine label="HGVSp" value={formatHgvsNotation(variant.hgvsp ?? variant.HGVSp, "p")} />
         <DetailLine label="Exon" value={dashToNull(variant.exon ?? variant.EXON)} />
         <DetailLine label="Intron" value={dashToNull(variant.intron ?? variant.INTRON)} />
+        {/* Strand moved here from the Details tab's Population Variant
+            Effect section — it's basic identity/orientation info about
+            the call, not a population-level effect metric. */}
+        <DetailLine label="Strand" value={dashToNull(variant.strand ?? variant.STRAND)} />
       </div>
 
       {geneCatMeta && (
@@ -178,13 +179,13 @@ function OverviewTab({ variant }) {
 // already shown somewhere more specific. Overview covers: depth/VF%
 // (gauge) — "depth" is variant_parser.py's canonical rename of the
 // Tumor_Total_Genotype_Depth column, shown here as "Genotype depth" —
-// chrom/pos/HGVSc/HGVSp/rsID/MANE Select/exon/intron (identity grid),
-// gene_category/gene_panels (Gene panel match), and SIFT/PolyPhen/
-// AlphaMissense/REVEL/CADD (Predicted Impact). The Info tab covers the raw
-// VCF INFO field on its own. The compact list already covers ACMG
-// classification and gene symbol. "variant_id" and "pathogenicity_class"
-// are also excluded — they're internal, app-computed values, not columns
-// the pipeline itself produced.
+// chrom/pos/HGVSc/HGVSp/rsID/MANE Select/exon/intron/strand (identity
+// grid), gene_category/gene_panels (Gene panel match), and SIFT/PolyPhen/
+// AlphaMissense/REVEL/CADD (Predicted Impact). The compact list already
+// covers ACMG classification and gene symbol. "variant_id" and
+// "pathogenicity_class" are also excluded — they're internal, app-computed
+// values, not columns the pipeline itself produced. The raw VCF INFO
+// field is excluded entirely (no dedicated view for it anymore).
 const DETAILS_EXCLUDED_FIELDS = new Set([
   "chrom", "pos", "ref", "alt", "depth", "vf_pct", "rsid",
   "hgvsc", "HGVSc", "hgvsp", "HGVSp",
@@ -196,8 +197,8 @@ const DETAILS_EXCLUDED_FIELDS = new Set([
   "acmg_classification", "gene", "clin_sig",
   "info", "INFO", "Info",
   // Consequence and variant type are already shown in the compact list —
-  // dropped from the Details tab (Variant Effects / Additional Details
-  // respectively) so they aren't duplicated here.
+  // dropped from the Details tab (Population Variant Effect / Additional
+  // Details respectively) so they aren't duplicated here.
   "consequence", "varient_type",
 ]);
 
@@ -211,10 +212,21 @@ const DETAILS_EXCLUDED_FIELDS = new Set([
 const DETAILS_EXCLUDED_FIELDS_NORMALIZED = new Set([
   // Variant Identity: HGNC ID / Symbol source
   "hgncid", "symbolsource",
-  // Variant Effects: Amino acids / APPRIS / CADD raw / cDNA position /
-  // CDS position / Codons. (ClinPred pred used to be dropped here too, but
-  // now lives in the In silico values section instead.)
+  // Population Variant Effect: Amino acids / APPRIS / CADD raw / cDNA
+  // position / CDS position / Codons.
   "aminoacids", "appris", "caddraw", "cdnaposition", "cdsposition", "codons",
+  // Population Variant Effect: dropped entirely per current spec —
+  // Distance, HGVS offset, Impact, Location, MANE Plus Clinical, Motif
+  // name/pos/score change, Protein position, SpliceAI DS AG/AL/DG/DL,
+  // SpliceAI symbol, Transcription factors, TSL.
+  "distance", "hgvsoffset", "impact", "location", "maneplusclinical",
+  "motifname", "motifpos", "motifscorechange", "proteinposition",
+  "spliceaidsag", "spliceaidsal", "spliceaidsdg", "spliceaidsdl", "spliceaisymbol",
+  "transcriptionfactors", "tsl",
+  // Strand now lives in the Overview identity grid instead.
+  "strand",
+  // Filter dropped entirely — no longer shown even in Additional Details.
+  "filter",
 ]);
 
 // Renames a handful of raw field names to clearer labels on the Details
@@ -227,8 +239,8 @@ const FIELD_LABEL_OVERRIDES = {
 };
 
 // Groups the Details tab's fields into labeled sections (à la vgen's
-// Overview: Variant Identity / Variant Effects / Clinical Context /
-// Sequencing Confidence / Genotype Info), instead of one long
+// Overview: Variant Identity / Population Variant Effect / Clinical
+// Context / Sequencing Confidence / Genotype Info), instead of one long
 // alphabetical list. Matching is done on a normalized key (lowercased,
 // punctuation/underscores stripped) rather than the raw key string, so it
 // survives whatever casing convention a given field happens to use
@@ -250,32 +262,33 @@ const DETAIL_SECTIONS = [
     keys: new Set(["biotype", "feature", "featuretype", "gene1", "flags"]),
   },
   {
-    title: "Variant Effects",
+    title: "Population Variant Effect",
     // appris/cdnaposition/cdsposition/codons/aminoacids/caddraw removed
     // here — dropped entirely via DETAILS_EXCLUDED_FIELDS_NORMALIZED.
     // consequence removed — dropped entirely via DETAILS_EXCLUDED_FIELDS
-    // (already shown in the compact list). The pathogenicity-predictor
-    // fields (MutationTaster/MutationAssessor/FATHMM/PROVEAN/MetaLR/
-    // DEOGEN2/ClinPred preds, SpliceAI_DP_* scores) moved out to the new
-    // "In silico values" section below rather than living here too.
+    // (already shown in the compact list). Distance, HGVS offset, Impact,
+    // Location, MANE Plus Clinical, Motif name/pos/score change, Protein
+    // position, SpliceAI DS AG/AL/DG/DL, SpliceAI symbol, Transcription
+    // factors, and TSL are all dropped entirely (see
+    // DETAILS_EXCLUDED_FIELDS_NORMALIZED). Strand moved to the Overview
+    // tab. LRT pred moved to "In silico values" below, alongside the rest
+    // of the pathogenicity-predictor calls (MutationTaster/
+    // MutationAssessor/FATHMM/PROVEAN/MetaLR/DEOGEN2/ClinPred preds,
+    // SpliceAI_DP_* scores).
     keys: new Set([
-      "impact", "exon", "intron",
-      "proteinposition", "strand", "distance", "motifname",
-      "motifpos", "motifscorechange", "tsl", "hgvsoffset", "maneplusclinical", "location",
-      "lrtpred",
-      "spliceaidsag", "spliceaidsal", "spliceaidsdg", "spliceaidsdl", "spliceaisymbol",
+      "exon", "intron",
       "gnomadaf", "gnomadeafraf", "gnomadeamraf", "gnomadeasjaf", "gnomadeeasaf",
       "gnomadefinaf", "gnomadenfeaf", "gnomadesasaf", "af1000g", "indgenomeaf",
-      "transcriptionfactors",
     ]),
   },
   {
     title: "In silico values",
     // Pathogenicity-predictor calls and SpliceAI donor/acceptor-gain/loss
-    // scores — kept together here rather than scattered across Variant
-    // Effects (or, for ClinPred pred, dropped entirely as it used to be).
+    // scores — kept together here rather than scattered across Population
+    // Variant Effect. LRT pred now lives here too, alongside the other
+    // predictor calls, rather than in Population Variant Effect.
     keys: new Set([
-      "mutationtasterpred", "mutationassessorpred", "fathmmpred", "proveanpred",
+      "lrtpred", "mutationtasterpred", "mutationassessorpred", "fathmmpred", "proveanpred",
       "metalrpred", "deogen2pred", "clinpredpred",
       "spliceaidpag", "spliceaidpal", "spliceaidpdg", "spliceaidpdl",
     ]),
@@ -286,7 +299,11 @@ const DETAIL_SECTIONS = [
   },
   {
     title: "Sequencing Confidence",
-    keys: new Set(["ad", "dp", "gq", "qual", "pl", "somatic", "tumoraltalleledepth", "tumorrefalleledepth", "filter"]),
+    // Filter and Tumor alt allele depth removed from this section — Filter
+    // is dropped entirely (see DETAILS_EXCLUDED_FIELDS_NORMALIZED), and
+    // Tumor alt allele depth is kept in Additional Details instead of
+    // appearing here.
+    keys: new Set(["ad", "dp", "gq", "qual", "pl", "somatic", "tumorrefalleledepth"]),
   },
   {
     title: "Genotype Information",
@@ -347,8 +364,8 @@ function DetailsTab({ variant }) {
 // One labeled, counted card per section — mirrors vgen's "Variant
 // Identity · 7 fields" pattern, with each field as its own small boxed
 // tile rather than a flat underlined row, so a section with many fields
-// (Variant Effects can easily be 30+) still scans as a grid rather than a
-// wall of text.
+// (Population Variant Effect can easily be 30+) still scans as a grid
+// rather than a wall of text.
 function DetailsSection({ title, fields }) {
   return (
     <div style={{ border: `1px solid ${T.borderSoft}`, borderRadius: 10, padding: "14px 14px 12px", background: T.surface }}>
@@ -376,55 +393,6 @@ function DetailsSection({ title, fields }) {
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-// The raw VCF INFO column arrives as either a semicolon-separated
-// "KEY=value;KEY2=value2;FLAG_KEY" string (standard VCF INFO syntax — a
-// bare key with no "=" is a flag, shown as "Present") or, if the backend
-// has already parsed it, a plain object. Either way this normalizes it
-// into a flat list of [key, value] pairs for display.
-function parseInfoField(raw) {
-  if (raw == null || raw === "" || raw === "-") return [];
-  if (typeof raw === "object") {
-    return Object.entries(raw).map(([k, v]) => [k, formatScoreValue(v)]);
-  }
-  return String(raw)
-    .split(";")
-    .map((pair) => pair.trim())
-    .filter(Boolean)
-    .map((pair) => {
-      const eqIdx = pair.indexOf("=");
-      if (eqIdx === -1) return [pair, "Present"];
-      return [pair.slice(0, eqIdx).trim(), formatScoreValue(pair.slice(eqIdx + 1).trim())];
-    });
-}
-
-function InfoTab({ variant }) {
-  const raw = variant.info ?? variant.INFO ?? variant.Info;
-  const entries = parseInfoField(raw);
-
-  if (entries.length === 0) {
-    return (
-      <div style={{ textAlign: "center", color: T.textFaint, fontSize: 13, padding: "36px 0" }}>
-        No INFO field data for this variant.
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3px 20px" }}>
-      {entries.map(([key, value], idx) => (
-        <div key={`${key}-${idx}`} style={{ padding: "6px 0", borderBottom: `1px solid ${T.borderSoft}` }}>
-          <div style={{ fontSize: 9.5, fontWeight: 700, color: T.textFaint, letterSpacing: 0.3 }}>
-            {key.replace(/_/g, " ")}
-          </div>
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: T.text, fontFamily: T.mono, wordBreak: "break-word" }}>
-            {value}
-          </div>
-        </div>
-      ))}
     </div>
   );
 }

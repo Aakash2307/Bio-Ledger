@@ -40,6 +40,11 @@ function gridColsFor(columns) {
   return columns.map(([key]) => COLUMN_TRACKS[key] || "minmax(90px, max-content)").join(" ");
 }
 
+// Shared border-bottom style for every cell in a row (see the "rowStyle"
+// comment on the row wrapper below for why this lives per-cell rather
+// than on the row container).
+const cellBorder = { borderBottom: `1px solid ${T.borderSoft}` };
+
 // ClinVar strings arrive as raw, comma/slash separated, lower_snake_case
 // tokens (e.g. "pathogenic,benign" or "conflicting_interpretations_of_
 // pathogenicity,benign"). Dedupe and prettify them for display.
@@ -174,36 +179,47 @@ export default function VariantTable({
                   cursor: "pointer",
                   background: isSelected ? T.accentDim : "transparent",
                   borderLeft: isSelected ? `2px solid ${T.accent}` : "2px solid transparent",
-                  borderBottom: `1px solid ${T.borderSoft}`,
+                  // NOTE: the row divider is intentionally NOT set here as a
+                  // single borderBottom on this container. Consequence /
+                  // Clinical Significance wrap to 2+ lines on longer values
+                  // while every other cell stays single-line, and a
+                  // container-level border only reliably renders under the
+                  // grid tracks that actually reach the container's content
+                  // edge — with mixed wrapping heights that left the divider
+                  // trailing off after the first (short, nowrap) column
+                  // instead of spanning the full row. Each cell below gets
+                  // its own matching borderBottom (cellBorder) instead, so
+                  // every column — regardless of how many lines it wraps
+                  // to — ends the row with a continuous, aligned line.
                 }}
               >
-                <div style={{ padding: "8px 12px 8px 10px", whiteSpace: "nowrap", fontWeight: 600, color: T.text }}>
+                <div style={{ ...cellBorder, padding: "8px 12px 8px 10px", whiteSpace: "nowrap", fontWeight: 600, color: T.text }}>
                   {formatAcmg(r.acmg_classification)}
                 </div>
-                <div style={{ padding: "8px 12px", fontFamily: T.mono, color: T.textMuted, whiteSpace: "nowrap" }}>{r.chrom}</div>
-                <div style={{ padding: "8px 12px", fontFamily: T.mono, color: T.textMuted, whiteSpace: "nowrap" }}>{r.pos}</div>
-                <div style={{ padding: "8px 12px", fontFamily: T.mono, color: T.textMuted, whiteSpace: "nowrap" }} title={r.ref}>{truncateSeq(r.ref)}</div>
-                <div style={{ padding: "8px 12px", fontFamily: T.mono, color: T.textMuted, whiteSpace: "nowrap" }} title={r.alt}>{truncateSeq(r.alt)}</div>
-                <div style={{ padding: "8px 12px", whiteSpace: "nowrap" }}>
+                <div style={{ ...cellBorder, padding: "8px 12px", fontFamily: T.mono, color: T.textMuted, whiteSpace: "nowrap" }}>{r.chrom}</div>
+                <div style={{ ...cellBorder, padding: "8px 12px", fontFamily: T.mono, color: T.textMuted, whiteSpace: "nowrap" }}>{r.pos}</div>
+                <div style={{ ...cellBorder, padding: "8px 12px", fontFamily: T.mono, color: T.textMuted, whiteSpace: "nowrap" }} title={r.ref}>{truncateSeq(r.ref)}</div>
+                <div style={{ ...cellBorder, padding: "8px 12px", fontFamily: T.mono, color: T.textMuted, whiteSpace: "nowrap" }} title={r.alt}>{truncateSeq(r.alt)}</div>
+                <div style={{ ...cellBorder, padding: "8px 12px", whiteSpace: "nowrap" }}>
                   <span style={{
                     display: "inline-block", width: 7, height: 7, borderRadius: "50%",
                     marginRight: 7, background: CLASS_META[r.pathogenicity_class]?.color,
                   }} />
                   <span style={{ fontFamily: T.mono, color: T.text }}>{r.gene}</span>
                 </div>
-                <div style={{ padding: "8px 12px", color: T.textMuted, whiteSpace: "nowrap" }}>
+                <div style={{ ...cellBorder, padding: "8px 12px", color: T.textMuted, whiteSpace: "nowrap" }}>
                   {formatVariantType(r.varient_type)}
                 </div>
-                <div style={{ padding: "8px 12px", color: T.textMuted, whiteSpace: "normal", wordBreak: "break-word", lineHeight: 1.4 }} title={formatConsequence(r.consequence)}>
+                <div style={{ ...cellBorder, padding: "8px 12px", color: T.textMuted, whiteSpace: "normal", wordBreak: "break-word", lineHeight: 1.4 }} title={formatConsequence(r.consequence)}>
                   {formatConsequence(r.consequence)}
                 </div>
-                <div style={{ padding: "8px 12px", color: "#7C5CA6", fontWeight: 600, fontSize: 12, whiteSpace: "normal", wordBreak: "break-word", lineHeight: 1.4 }} title={formatClinSig(r.clin_sig)}>
+                <div style={{ ...cellBorder, padding: "8px 12px", color: "#7C5CA6", fontWeight: 600, fontSize: 12, whiteSpace: "normal", wordBreak: "break-word", lineHeight: 1.4 }} title={formatClinSig(r.clin_sig)}>
                   {formatClinSig(r.clin_sig)}
                 </div>
                 {/* Frequency is intentionally left blank for now — no data
                     source wired up yet; the column exists as a placeholder
                     for when one is. */}
-                <div style={{ padding: "8px 12px", color: T.textFaint, whiteSpace: "nowrap" }} />
+                <div style={{ ...cellBorder, padding: "8px 12px", color: T.textFaint, whiteSpace: "nowrap" }} />
               </div>
             );
           })}

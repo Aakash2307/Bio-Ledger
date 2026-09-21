@@ -13,7 +13,7 @@ import SplashScreen         from "./pages/SplashScreen";
 import Reports              from "./pages/Reports";
 import ReportAutomation     from "./pages/ReportAutomation";
 import BioLedgerSpinner     from "./pages/BioledgerSpinner";
-import VariantVisualization from "./pages/VariantVisualization";
+import VariantVisualization from "./pages/VariantVisualization/VariantVisualization";
 
 import GenePanel            from "./pages/Genepanel";
 

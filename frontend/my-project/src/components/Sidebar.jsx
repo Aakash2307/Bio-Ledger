@@ -12,9 +12,7 @@ const navItems = [
   { label: "Sequencing analysis", icon: "〜", path: "/sequencing" },
   { label: "Reports",    icon: "📄", path: "/reports"    },
   { label: "Variant Analysis", icon: "🔍", path: "/variants"   },
-  // { label: "Gene Panel", icon: "🧬", path: "/gene-panel" },
-  { label: "Settings",   icon: "⚙",  path: "/settings"   }
-  
+  { label: "Settings",   icon: "⚙",  path: "/settings"   },
 ];
 
 export default function Sidebar({ onSignOut }) {

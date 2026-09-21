@@ -19,8 +19,9 @@ Install once: pip install pandas duckdb pyarrow openpyxl
 
 import os
 import math
-import pandas as pd # type: ignore
-import duckdb # type: ignore
+
+import pandas as pd
+import duckdb 
 
 from app.services.gene_panel_db import get_gene_category_lookup
 from app.services.gene_panel_parser import PANEL_MATCHERS

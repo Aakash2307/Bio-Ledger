@@ -39,6 +39,7 @@ backend/Report Automation/Database_integrations_With_Filter V1/SOMATIC/Databases
 backend/**/*.txt
 backend/Report Automation/Database_integrations_With_Filter V1/SOMATIC/Resources
 
+backend/variant_cache/
 
 
 

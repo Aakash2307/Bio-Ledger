@@ -49,6 +49,7 @@
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
+
 .variant-viz__back-btn:hover {
   background: #f9fafb;
   border-color: #d1d5db;
@@ -64,6 +65,7 @@
   cursor: pointer;
   transition: background 0.15s ease;
 }
+
 .variant-viz__upload-btn:hover {
   background: #1d4ed8;
 }
@@ -77,6 +79,7 @@
   color: #6b6b6b;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
+
 .variant-viz__empty-sub {
   font-size: 13px;
   margin-top: 6px;
@@ -110,15 +113,18 @@
   border-radius: 999px;
   font-size: 13px;
 }
+
 .variant-viz__chip strong {
   color: #111;
   margin-left: 4px;
 }
+
 .variant-viz__chip--muted {
   background: transparent;
   color: #6b6b6b;
   font-weight: 600;
 }
+
 .variant-viz__chip--zygosity {
   background: #eef2ff;
   color: #4338ca;
@@ -127,6 +133,7 @@
 /* ACMG / clinical significance badges — same semantic hierarchy as the
    reference product (severity = warmer color) but tuned to this app's
    blue/purple/orange/pink palette instead of vgen23's greens. */
+
 .variant-viz__badge {
   display: inline-block;
   padding: 4px 10px;
@@ -134,18 +141,43 @@
   font-size: 12px;
   font-weight: 700;
 }
-.variant-viz__badge--p { background: #fee2e2; color: #b91c1c; }
-.variant-viz__badge--lp { background: #ffedd5; color: #c2410c; }
-.variant-viz__badge--vus { background: #fef9c3; color: #a16207; }
-.variant-viz__badge--lb { background: #dcfce7; color: #15803d; }
-.variant-viz__badge--b { background: #ecfdf5; color: #047857; }
-.variant-viz__badge--na { background: #f3f4f6; color: #6b7280; }
+
+.variant-viz__badge--p {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.variant-viz__badge--lp {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.variant-viz__badge--vus {
+  background: #fef9c3;
+  color: #a16207;
+}
+
+.variant-viz__badge--lb {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.variant-viz__badge--b {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.variant-viz__badge--na {
+  background: #f3f4f6;
+  color: #6b7280;
+}
 
 .variant-viz__toolbar {
   display: flex;
   gap: 12px;
   margin-bottom: 12px;
 }
+
 .variant-viz__toolbar input {
   flex: 1;
   padding: 10px 14px;
@@ -153,6 +185,7 @@
   border-radius: 10px;
   font-size: 14px;
 }
+
 .variant-viz__toolbar select {
   padding: 10px 14px;
   border: 1px solid #e5e7eb;
@@ -164,6 +197,7 @@
 .variant-viz__col-picker-wrap {
   position: relative;
 }
+
 .variant-viz__col-picker-btn {
   padding: 10px 14px;
   border: 1px solid #e5e7eb;
@@ -173,6 +207,7 @@
   cursor: pointer;
   white-space: nowrap;
 }
+
 .variant-viz__col-picker-panel {
   position: absolute;
   right: 0;
@@ -187,6 +222,7 @@
   padding: 10px;
   z-index: 30;
 }
+
 .variant-viz__col-picker-actions {
   display: flex;
   gap: 8px;
@@ -194,6 +230,7 @@
   padding-bottom: 8px;
   border-bottom: 1px solid #f3f4f6;
 }
+
 .variant-viz__col-picker-actions button {
   flex: 1;
   font-size: 12px;
@@ -203,6 +240,7 @@
   background: #f9fafb;
   cursor: pointer;
 }
+
 .variant-viz__col-picker-item {
   display: flex;
   align-items: center;
@@ -212,6 +250,7 @@
   color: #374151;
   cursor: pointer;
 }
+
 .variant-viz__col-picker-item:hover {
   background: #f9fafb;
   border-radius: 6px;
@@ -229,6 +268,7 @@
   border-collapse: collapse;
   font-size: 13px;
 }
+
 .variant-viz__table th {
   text-align: left;
   padding: 12px 16px;
@@ -237,22 +277,27 @@
   border-bottom: 1px solid #eee;
   white-space: nowrap;
 }
+
 .variant-viz__table td {
   padding: 12px 16px;
   border-bottom: 1px solid #f3f4f6;
   white-space: nowrap;
 }
+
 .variant-viz__table tbody tr {
   cursor: pointer;
   transition: background 0.1s ease;
 }
+
 .variant-viz__table tbody tr:hover {
   background: #f8fafc;
 }
+
 .variant-viz__gene {
   font-weight: 700;
   color: #1e3a8a;
 }
+
 .variant-viz__mono {
   font-family: "SF Mono", Consolas, monospace;
   font-size: 12px;
@@ -265,8 +310,16 @@
   font-size: 11px;
   font-weight: 700;
 }
-.variant-viz__zyg--het { background: #fff7ed; color: #c2410c; }
-.variant-viz__zyg--hom { background: #fee2e2; color: #b91c1c; }
+
+.variant-viz__zyg--het {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.variant-viz__zyg--hom {
+  background: #fee2e2;
+  color: #b91c1c;
+}
 
 .variant-viz__pagination {
   display: flex;
@@ -276,6 +329,7 @@
   color: #6b6b6b;
   font-size: 13px;
 }
+
 .variant-viz__pagination button {
   padding: 8px 16px;
   border: 1px solid #e5e7eb;
@@ -284,12 +338,14 @@
   margin-left: 8px;
   cursor: pointer;
 }
+
 .variant-viz__pagination button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
 /* Drawer */
+
 .variant-drawer__overlay {
   position: fixed;
   inset: 0;
@@ -298,6 +354,7 @@
   justify-content: flex-end;
   z-index: 50;
 }
+
 .variant-drawer {
   width: 480px;
   max-width: 90vw;
@@ -307,22 +364,26 @@
   padding: 28px;
   box-shadow: -8px 0 24px rgba(0, 0, 0, 0.12);
 }
+
 .variant-drawer__header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 20px;
 }
+
 .variant-drawer__header h2 {
   margin: 0;
   font-size: 20px;
   color: #111;
 }
+
 .variant-drawer__coords {
   font-family: "SF Mono", Consolas, monospace;
   font-size: 13px;
   color: #6b6b6b;
 }
+
 .variant-drawer__close {
   border: 1px solid #e5e7eb;
   background: #fff;
@@ -337,6 +398,7 @@
   padding-bottom: 18px;
   border-bottom: 1px solid #f3f4f6;
 }
+
 .variant-drawer__section h3 {
   font-size: 13px;
   text-transform: uppercase;
@@ -344,27 +406,114 @@
   color: #9ca3af;
   margin: 0 0 12px;
 }
+
 .variant-drawer__grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
+
 .variant-drawer__grid--full {
   grid-template-columns: 1fr 1fr;
   gap: 14px 12px;
   padding-top: 4px;
 }
+
 .variant-drawer__field {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
+
 .variant-drawer__field-label {
   font-size: 11px;
   color: #9ca3af;
 }
+
 .variant-drawer__field-value {
   font-size: 14px;
   color: #111;
   word-break: break-word;
+}
+
+/* Patient ID search */
+
+.variant-summary-patient-search {
+  display: flex;
+  align-items: center;
+  width: 320px;
+  min-width: 260px;
+  position: relative;
+}
+
+.variant-summary-patient-search::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #9ca3af;
+  border-radius: 50%;
+  transform: translateY(-55%);
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.variant-summary-patient-search::after {
+  content: "";
+  position: absolute;
+  left: 27px;
+  top: 50%;
+  width: 7px;
+  height: 2px;
+  background: #9ca3af;
+  transform: translateY(4px) rotate(45deg);
+  transform-origin: left center;
+  pointer-events: none;
+}
+
+.variant-summary-patient-search input {
+  width: 100%;
+  height: 38px;
+  box-sizing: border-box;
+  padding: 0 14px 0 42px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #374151;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.variant-summary-patient-search input::placeholder {
+  color: #9ca3af;
+}
+
+.variant-summary-patient-search input:hover {
+  border-color: #d1d5db;
+}
+
+.variant-summary-patient-search input:focus {
+  border-color: #0b6e64;
+  box-shadow: 0 0 0 3px rgba(11, 110, 100, 0.1);
+}
+
+@media (max-width: 900px) {
+  .variant-summary-patient-search {
+    width: 100%;
+    min-width: 220px;
+    flex: 1 1 220px;
+  }
+}
+
+@media (max-width: 640px) {
+  .variant-summary-patient-search {
+    width: 100%;
+    flex-basis: 100%;
+  }
 }

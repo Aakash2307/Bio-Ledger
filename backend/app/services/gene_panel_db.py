@@ -7,7 +7,6 @@ used by patient_routes / sample_routes / report_worker). Adjust the import
 below if your actual helper has a different name.
 """
 
-
 from database import get_connection
 from app.services.gene_panel_parser import ParsedGeneRecord
 

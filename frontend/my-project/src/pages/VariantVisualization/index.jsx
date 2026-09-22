@@ -3,6 +3,7 @@ import VariantSummary from "./VariantSummary";
 import VariantTable from "./VariantTable";
 import VariantDetailPanel from "./VariantDetailPanel";
 import { T, panel } from "./variantTheme";
+import "../../css/VariantVisualization.css";
 
 // ── Cross-route persistence ─────────────────────────────────────────────
 // Sample ID, filters, current page, sort, and the selected variant used to

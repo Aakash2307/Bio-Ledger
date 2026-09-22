@@ -18,6 +18,8 @@ Install once: pip install pandas duckdb pyarrow openpyxl
 """
 
 import os
+import glob
+import re
 import math
 import pandas as pd  # type: ignore
 import duckdb # type: ignore
@@ -99,9 +101,46 @@ def _json_safe(df: pd.DataFrame) -> pd.DataFrame:
     return df.astype(object).where(pd.notnull(df), None)
 
 
-def _cache_path(sample_id: str) -> str:
-    safe = "".join(c for c in sample_id if c.isalnum() or c in "._-")
-    return os.path.join(CACHE_DIR, f"{safe}.parquet")
+def _safe_id(sample_id: str) -> str:
+    return "".join(c for c in sample_id if c.isalnum() or c in "._-")
+
+
+def _type_label(variant_type: str) -> str:
+    """somatic -> Somatic, germline -> Germline, prs -> PRS."""
+    vt = (variant_type or "").strip().lower()
+    return "PRS" if vt == "prs" else vt.capitalize() or "Results"
+
+
+def _cache_path(sample_id: str, variant_type: str) -> str:
+    """Write-time path: embeds the type in the filename, e.g.
+    variant_cache/5A0172_Germline_Results.parquet"""
+    return os.path.join(CACHE_DIR, f"{_safe_id(sample_id)}_{_type_label(variant_type)}_Results.parquet")
+
+
+def _find_cache_path(sample_id: str) -> str | None:
+    """Read-time lookup: callers (query_variants/get_summary/get_variant_detail)
+    only have a sample_id, not the type, so glob for it. Only one cache file
+    per sample_id is expected at a time (a fresh upload for that sample_id
+    replaces the previous one — see parse_and_cache) but if more than one is
+    ever found (e.g. a stray leftover), the most recently written one wins."""
+    safe = _safe_id(sample_id)
+    matches = glob.glob(os.path.join(CACHE_DIR, f"{safe}_*_Results.parquet"))
+    if matches:
+        return max(matches, key=os.path.getmtime)
+    # Backward-compat with caches written before this change
+    # (variant_cache/<sample_id>.parquet, no type in the name).
+    legacy = os.path.join(CACHE_DIR, f"{safe}.parquet")
+    return legacy if os.path.exists(legacy) else None
+
+
+def _cached_type_label(sample_id: str) -> str | None:
+    """Extracts 'Germline' / 'Somatic' / 'PRS' back out of the cache
+    filename, for display in the UI."""
+    path = _find_cache_path(sample_id)
+    if not path:
+        return None
+    m = re.match(r"^.+_([A-Za-z]+)_Results\.parquet$", os.path.basename(path))
+    return m.group(1) if m else None
 
 
 def _classify(row) -> str:
@@ -263,15 +302,24 @@ def parse_and_cache(file_path: str, sample_id: str, variant_type: str) -> int:
     # applies a secondary sort tie-break on variant_id so rows sharing the
     # same variant stay in a stable, deterministic order across pages rather
     # than shuffling between requests.
-    df.to_parquet(_cache_path(sample_id), index=False)
+    # A fresh upload for this sample_id replaces whatever was cached for it
+    # before (possibly a different type) — only one type is kept live per
+    # sample_id at a time.
+    for stale in glob.glob(os.path.join(CACHE_DIR, f"{_safe_id(sample_id)}_*_Results.parquet")):
+        os.remove(stale)
+    legacy = os.path.join(CACHE_DIR, f"{_safe_id(sample_id)}.parquet")
+    if os.path.exists(legacy):
+        os.remove(legacy)
+
+    df.to_parquet(_cache_path(sample_id, variant_type), index=False)
     return len(df)
 
 
 def query_variants(sample_id, page=1, page_size=100, sort_by="pos", sort_dir="asc",
                     class_filter=None, search=None, gene_filter=None, gene_category_filter=None,
                     panel_filter=None):
-    path = _cache_path(sample_id)
-    if not os.path.exists(path):
+    path = _find_cache_path(sample_id)
+    if not path:
         return {"rows": [], "total": 0, "page": page, "page_size": page_size}
 
     con = duckdb.connect()
@@ -351,9 +399,9 @@ def get_summary(sample_id):
     unclassified), and a per-panel breakdown (Somatic, Hereditary,
     Cardiac, etc.) — the last two only when gene_category/gene_panels
     columns are present in this sample's cache."""
-    path = _cache_path(sample_id)
-    if not os.path.exists(path):
-        return {"total": 0, "classes": {}, "gene_categories": {}, "panels": []}
+    path = _find_cache_path(sample_id)
+    if not path:
+        return {"total": 0, "classes": {}, "gene_categories": {}, "panels": [], "variant_type": None}
     con = duckdb.connect()
 
     actual_columns = [
@@ -401,12 +449,13 @@ def get_summary(sample_id):
         "classes": {r[0]: r[1] for r in rows},
         "gene_categories": gene_categories,
         "panels": panels,
+        "variant_type": _cached_type_label(sample_id),
     }
 
 
 def get_variant_detail(sample_id, variant_id):
-    path = _cache_path(sample_id)
-    if not os.path.exists(path):
+    path = _find_cache_path(sample_id)
+    if not path:
         return None
     con = duckdb.connect()
     row = con.execute(

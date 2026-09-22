@@ -9,7 +9,6 @@ const DETAIL_TABS = [
   "Viewer",
   "ACMG",
   "Similar Patients",
-  "Warnings",
 ];
 
 // Formats a single value for the prediction wheel: numeric scores get a

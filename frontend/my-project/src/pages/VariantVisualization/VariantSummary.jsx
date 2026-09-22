@@ -24,40 +24,56 @@ export default function VariantSummary({
 
   return (
     <div style={{ ...panel, padding: "18px 22px", marginBottom: 16 }}>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 28, flexWrap: "wrap", marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 20, flexWrap: "wrap", marginBottom: 16 }}>
         <div>
           <div style={{ fontSize: 11, fontWeight: 600, color: T.textFaint, marginBottom: 6 }}>
-            Sample / patient ID
+            Sample Id
           </div>
-          <input
-            value={sampleId}
-            onChange={(e) => setSampleId(e.target.value)}
-            placeholder="e.g. 4A1643"
-            style={{
-              background: "transparent", border: "none", borderBottom: `1.5px solid ${T.border}`,
-              color: T.text, fontFamily: T.mono, fontSize: 18, fontWeight: 600, padding: "2px 0",
-              outline: "none", width: 190,
-            }}
-          />
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+            <input
+              value={sampleId}
+              onChange={(e) => setSampleId(e.target.value)}
+              placeholder="e.g. 4A1643"
+              style={{
+                background: "transparent", border: "none", borderBottom: `1.5px solid ${T.border}`,
+                color: T.text, fontFamily: T.mono, fontSize: 18, fontWeight: 600, padding: "2px 0",
+                outline: "none", width: "11ch",
+              }}
+            />
+            {summary.variant_type && (
+              <span style={{
+                fontSize: 11, fontWeight: 700, color: T.accent, background: T.accentDim,
+                padding: "2px 8px", borderRadius: 5, textTransform: "uppercase", letterSpacing: 0.3,
+              }}>
+                {summary.variant_type}
+              </span>
+            )}
+          </div>
         </div>
 
         <div>
           <div style={{ fontSize: 11, fontWeight: 600, color: T.textFaint, marginBottom: 4 }}>
             Retained variants
           </div>
-          <div style={{ fontSize: 32, fontWeight: 700, fontFamily: T.mono, color: T.text, lineHeight: 1 }}>
+          <div style={{ fontSize: 18, fontWeight: 600, fontFamily: T.mono, color: T.text, lineHeight: 1.3 }}>
             {summary.total.toLocaleString()}
           </div>
         </div>
 
-        <div style={{ flex: 1, minWidth: 20 }} />
-
+        <div className="variant-summary-patient-search" style={{ width: 170, flex: "0 0 auto" }}>
+          <input
+            type="text"
+            placeholder="Search patient ID..."
+            aria-label="Search patient ID"
+            style={{ width: "100%", boxSizing: "border-box" }}
+          />
+        </div>
         <label
           style={{
             ...btnBase, background: T.accent, color: "#FFFFFF", padding: "9px 16px", border: "none",
           }}
         >
-          {uploading ? "Uploading…" : "Upload sample file"}
+          {uploading ? "Uploading…" : "Upload"}
           <input type="file" accept=".xlsx,.csv,.tsv" hidden onChange={onUpload} />
         </label>
         <button

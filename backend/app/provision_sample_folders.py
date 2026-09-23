@@ -95,8 +95,8 @@ def write_expected_paths(conn, sid: str):
     needs one exact, predictable path to check against, not 'whatever
     happens to be in the folder'.
     """
-    germline_path = f"{sid}/germline/germline.xlsx"
-    somatic_path = f"{sid}/somatic/somatic.xlsx"
+    germline_path = f"{sid}/germline/Germline_Results.xlsx"
+    somatic_path = f"{sid}/somatic/Somatic_Results.xlsx"
 
     with conn.cursor() as cur:
         cur.execute("""

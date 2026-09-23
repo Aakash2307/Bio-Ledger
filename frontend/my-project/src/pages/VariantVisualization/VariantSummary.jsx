@@ -4,6 +4,14 @@ import {
   GENE_CATEGORY_META, GENE_CATEGORY_ORDER,
 } from "./variantTheme";
 
+// Colors/letters for the variant-type badge. Falls back to the accent
+// color + first letter of whatever string comes back, in case a new
+// variant type is ever added without updating this map.
+const VARIANT_TYPE_META = {
+  GERMLINE: { letter: "G", color: "#15803d", bg: "rgba(21,128,61,0.12)" },
+  SOMATIC:  { letter: "S", color: "#2563eb", bg: "rgba(37,99,235,0.12)" },
+};
+
 // Top strip: sample identity + classification lane + actions.
 // The distribution bar is both the hero visual (an at-a-glance read of
 // this sample's call mix) and the filter control itself — click a
@@ -21,6 +29,13 @@ export default function VariantSummary({
   const geneCategoryTotal = GENE_CATEGORY_ORDER.reduce((sum, k) => sum + (summary.gene_categories?.[k] || 0), 0) || 1;
   const hasGeneCategoryData = Object.keys(summary.gene_categories || {}).length > 0;
   const hasPanelData = (summary.panels || []).length > 0;
+
+  const variantTypeKey = (summary.variant_type || "").toUpperCase();
+  const variantTypeMeta = VARIANT_TYPE_META[variantTypeKey] || {
+    letter: variantTypeKey.charAt(0) || "?",
+    color: T.accent,
+    bg: T.accentDim,
+  };
 
   return (
     <div style={{ ...panel, padding: "18px 22px", marginBottom: 16 }}>
@@ -41,11 +56,15 @@ export default function VariantSummary({
               }}
             />
             {summary.variant_type && (
-              <span style={{
-                fontSize: 11, fontWeight: 700, color: T.accent, background: T.accentDim,
-                padding: "2px 8px", borderRadius: 5, textTransform: "uppercase", letterSpacing: 0.3,
-              }}>
-                {summary.variant_type}
+              <span
+                title={summary.variant_type}
+                style={{
+                  fontSize: 12, fontWeight: 700, color: variantTypeMeta.color, background: variantTypeMeta.bg,
+                  width: 22, height: 22, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  borderRadius: "50%", letterSpacing: 0,
+                }}
+              >
+                {variantTypeMeta.letter}
               </span>
             )}
           </div>

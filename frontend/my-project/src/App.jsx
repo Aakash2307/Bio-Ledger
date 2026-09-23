@@ -20,11 +20,18 @@ import GenePanel            from "./pages/Genepanel";
 
 
 function App() {
-  const [splashDone, setSplashDone] = useState(false);
+  const [splashDone, setSplashDone] = useState(
+    () => sessionStorage.getItem("bioledger_splash_shown") === "true"
+  );
+
+  const handleSplashDone = () => {
+    sessionStorage.setItem("bioledger_splash_shown", "true");
+    setSplashDone(true);
+  };
 
   return (
     <>
-      {!splashDone && <SplashScreen onDone={() => setSplashDone(true)} />}
+      {!splashDone && <SplashScreen onDone={handleSplashDone} />}
 
       <div style={{ opacity: splashDone ? 1 : 0, transition: "opacity 0.4s ease" }}>
         <Layout>

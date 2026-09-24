@@ -55,7 +55,10 @@ def variant_list(
     class_: str | None = Query(None, alias="class"),
     search: str | None = None,
     gene: str | None = None,
-    gene_category: str | None = Query(None, pattern="^(cancerous|non_cancerous|both)$"),
+    # "unclassified" added: covers variants whose gene didn't match any
+    # panel in the gene_panels reference table (gene_category IS NULL in
+    # the cache) — see the matching IS NULL branch in query_variants().
+    gene_category: str | None = Query(None, pattern="^(cancerous|non_cancerous|both|unclassified)$"),
     gene_panel: str | None = Query(None, alias="gene_panel"),
 ):
     return query_variants(

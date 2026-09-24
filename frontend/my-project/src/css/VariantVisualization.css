@@ -436,9 +436,9 @@
   word-break: break-word;
 }
 
-/* Patient ID search */
+/* Sample ID search */
 
-.variant-summary-patient-search {
+.variant-summary-sample-search {
   display: flex;
   align-items: center;
   width: 320px;
@@ -446,7 +446,7 @@
   position: relative;
 }
 
-.variant-summary-patient-search::before {
+.variant-summary-sample-search::before {
   content: "";
   position: absolute;
   left: 14px;
@@ -460,7 +460,7 @@
   pointer-events: none;
 }
 
-.variant-summary-patient-search::after {
+.variant-summary-sample-search::after {
   content: "";
   position: absolute;
   left: 27px;
@@ -473,7 +473,7 @@
   pointer-events: none;
 }
 
-.variant-summary-patient-search input {
+.variant-summary-sample-search input {
   width: 100%;
   height: 38px;
   box-sizing: border-box;
@@ -490,21 +490,21 @@
     box-shadow 0.15s ease;
 }
 
-.variant-summary-patient-search input::placeholder {
+.variant-summary-sample-search input::placeholder {
   color: #9ca3af;
 }
 
-.variant-summary-patient-search input:hover {
+.variant-summary-sample-search input:hover {
   border-color: #d1d5db;
 }
 
-.variant-summary-patient-search input:focus {
+.variant-summary-sample-search input:focus {
   border-color: #0b6e64;
   box-shadow: 0 0 0 3px rgba(11, 110, 100, 0.1);
 }
 
 @media (max-width: 900px) {
-  .variant-summary-patient-search {
+  .variant-summary-sample-search {
     width: 100%;
     min-width: 220px;
     flex: 1 1 220px;
@@ -512,7 +512,7 @@
 }
 
 @media (max-width: 640px) {
-  .variant-summary-patient-search {
+  .variant-summary-sample-search {
     width: 100%;
     flex-basis: 100%;
   }

@@ -343,8 +343,18 @@ def query_variants(sample_id, page=1, page_size=100, sort_by="pos", sort_dir="as
         where.append("gene = ?")
         params.append(gene_filter)
     if gene_category_filter and "gene_category" in actual_columns:
-        where.append("gene_category = ?")
-        params.append(gene_category_filter)
+        # "unclassified" isn't a value that's ever actually stored in the
+        # column — unmatched genes are left as NULL by _classify_gene (see
+        # its return of (None, None)) — so it has to be checked with
+        # IS NULL rather than a `= 'unclassified'` equality, which SQL
+        # would silently evaluate as never-true against a NULL cell. This
+        # mirrors the COALESCE(gene_category, 'unclassified') convention
+        # already used for the same bucket in get_summary() below.
+        if gene_category_filter == "unclassified":
+            where.append("gene_category IS NULL")
+        else:
+            where.append("gene_category = ?")
+            params.append(gene_category_filter)
     if panel_filter and "gene_panels" in actual_columns:
         # gene_panels is pipe-joined (e.g. "Cardiac|Somatic") since a gene
         # can match more than one panel — exact-token match via

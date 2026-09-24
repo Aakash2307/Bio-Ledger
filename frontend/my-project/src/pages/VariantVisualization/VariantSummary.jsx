@@ -59,8 +59,8 @@ export default function VariantSummary({
               <span
                 title={summary.variant_type}
                 style={{
-                  fontSize: 12, fontWeight: 700, color: variantTypeMeta.color, background: variantTypeMeta.bg,
-                  width: 22, height: 22, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 15, fontWeight: 700, color: variantTypeMeta.color, background: variantTypeMeta.bg,
+                  width: 30, height: 30, display: "inline-flex", alignItems: "center", justifyContent: "center",
                   borderRadius: "50%", letterSpacing: 0,
                 }}
               >
@@ -79,33 +79,36 @@ export default function VariantSummary({
           </div>
         </div>
 
-        <div className="variant-summary-patient-search" style={{ width: 170, flex: "0 0 auto" }}>
+        <div className="variant-summary-sample-search" style={{ width: 170, flex: "0 0 auto" }}>
           <input
             type="text"
-            placeholder="Search patient ID..."
-            aria-label="Search patient ID"
+            placeholder="Search sample ID..."
+            aria-label="Search sample ID"
             style={{ width: "100%", boxSizing: "border-box" }}
           />
         </div>
-        <label
-          style={{
-            ...btnBase, background: T.accent, color: "#FFFFFF", padding: "9px 16px", border: "none",
-          }}
-        >
-          {uploading ? "Uploading…" : "Upload"}
-          <input type="file" accept=".xlsx,.csv,.tsv" hidden onChange={onUpload} />
-        </label>
-        <button
-          onClick={onClear}
-          disabled={!sampleId && rowsCount === 0}
-          style={{
-            ...btnBase, background: "transparent", color: T.textMuted, padding: "9px 16px",
-            border: `1.5px solid ${T.border}`,
-            opacity: (!sampleId && rowsCount === 0) ? 0.4 : 1,
-          }}
-        >
-          Clear
-        </button>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto" }}>
+          <label
+            style={{
+              ...btnBase, background: T.accent, color: "#FFFFFF", padding: "9px 16px", border: "none",
+            }}
+          >
+            {uploading ? "Uploading…" : "Upload"}
+            <input type="file" accept=".xlsx,.csv,.tsv" hidden onChange={onUpload} />
+          </label>
+          <button
+            onClick={onClear}
+            disabled={!sampleId && rowsCount === 0}
+            style={{
+              ...btnBase, background: "transparent", color: T.textMuted, padding: "9px 16px",
+              border: `1.5px solid ${T.border}`,
+              opacity: (!sampleId && rowsCount === 0) ? 0.4 : 1,
+            }}
+          >
+            Clear
+          </button>
+        </div>
       </div>
 
       {/* Gene panel cross-reference lane: cancerous/non-cancerous/both/

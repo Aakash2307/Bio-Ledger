@@ -67,6 +67,119 @@ function dashToNull(value) {
   return value == null || value === "" || value === "-" ? null : value;
 }
 
+// Builds a ClinVar search URL for a variant. rsID is preferred when
+// present (most reliable single-term match); otherwise falls back to a
+// chrom+position search. That fallback assumes GRCh38 coordinates
+// (chrpos38) — switch to "chrpos37" here if the pipeline is on hg19.
+function getClinVarUrl(variant) {
+  const rsid = dashToNull(variant.rsid);
+  if (rsid) {
+    const cleanRsid = String(rsid).replace(/^rs/i, "");
+    return `https://www.ncbi.nlm.nih.gov/clinvar/?term=rs${cleanRsid}`;
+  }
+  const chrom = dashToNull(variant.chrom);
+  const pos = dashToNull(variant.pos);
+  if (chrom && pos) {
+    const cleanChrom = String(chrom).replace(/^chr/i, "");
+    return `https://www.ncbi.nlm.nih.gov/clinvar/?term=${cleanChrom}%5Bchr%5D+AND+${pos}%5Bchrpos38%5D`;
+  }
+  return null;
+}
+
+// Placeholder "logo" — a small pill badge in ClinVar's brand blue, styled
+// to match the app's other badges (e.g. the gene-panel-match pill).
+// Swap this <span> for an <img src={clinvarLogo} .../> once a real logo
+// asset is added under src/assets/.
+function ClinVarLink({ variant }) {
+  const url = getClinVarUrl(variant);
+  if (!url) return null;
+
+  const brandColor = "#1a5fb4";
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title="View this variant on ClinVar"
+      style={{ textDecoration: "none", display: "inline-flex" }}
+    >
+      <span
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px",
+          borderRadius: 999, fontSize: 11.5, fontWeight: 700, color: brandColor,
+          background: `${brandColor}18`, border: `1px solid ${brandColor}40`,
+          fontFamily: T.sans, whiteSpace: "nowrap",
+        }}
+      >
+        ClinVar ↗
+      </span>
+    </a>
+  );
+}
+
+// Builds a GIDB (Genome India Database) search URL for this specific
+// variant. GIDB's own search box (see gidb.igib.res.in) documents two
+// query forms that identify one exact variant: "chr7:117504290-C-T"
+// (chrom:pos-ref-alt, GRCh38) and an rsID like "rs1000000" — the same two
+// examples shown on their homepage. Chrom+pos+ref+alt is preferred here
+// since it pins the exact allele the way ClinVar's chrpos38 fallback
+// does; rsID is the fallback when ref/alt aren't available.
+// NOTE: GIDB's site doesn't publish a documented deep-link query
+// parameter the way ClinVar does, so this uses the conventional `?q=`
+// pattern against their homepage search box. If GIDB changes their
+// front-end routing, this may land on the homepage with the query
+// pre-filled but not auto-submitted — worth a quick check against a real
+// variant.
+function getGidbUrl(variant) {
+  const chrom = dashToNull(variant.chrom);
+  const pos = dashToNull(variant.pos);
+  const ref = dashToNull(variant.ref);
+  const alt = dashToNull(variant.alt);
+  const rsid = dashToNull(variant.rsid);
+
+  let query = null;
+  if (chrom && pos && ref && alt) {
+    const chromWithPrefix = /^chr/i.test(String(chrom)) ? String(chrom) : `chr${chrom}`;
+    query = `${chromWithPrefix}:${pos}-${ref}-${alt}`;
+  } else if (rsid) {
+    query = /^rs/i.test(String(rsid)) ? String(rsid) : `rs${rsid}`;
+  }
+
+  if (!query) return null;
+  return `https://gidb.igib.res.in/?q=${encodeURIComponent(query)}`;
+}
+
+// Placeholder pill — styled to match ClinVarLink — linking out to GIDB
+// (Genome India Database) for this variant's population-frequency data.
+function GIDBLink({ variant }) {
+  const url = getGidbUrl(variant);
+  if (!url) return null;
+
+  const brandColor = "#7c3aed";
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title="View this variant on GIDB"
+      style={{ textDecoration: "none", display: "inline-flex" }}
+    >
+      <span
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px",
+          borderRadius: 999, fontSize: 11.5, fontWeight: 700, color: brandColor,
+          background: `${brandColor}18`, border: `1px solid ${brandColor}40`,
+          fontFamily: T.sans, whiteSpace: "nowrap",
+        }}
+      >
+        GIDB ↗
+      </span>
+    </a>
+  );
+}
+
 export default function VariantDetailPanel({ variant }) {
   const [tab, setTab] = useState("Overview");
 
@@ -118,13 +231,17 @@ function OverviewTab({ variant }) {
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 24, marginBottom: 26 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 24, marginBottom: 26 }}>
         <FractionGauge value={vf} />
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: 10 }}>
           <div>
             <div style={{ fontSize: 26, fontWeight: 700, fontFamily: T.mono, color: T.text, lineHeight: 1 }}>{genotypeDepth ?? "—"}</div>
             <div style={{ fontSize: 10.5, fontWeight: 600, color: T.textFaint, marginTop: 3 }}>Genotype depth</div>
           </div>
+        </div>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          <ClinVarLink variant={variant} />
+          <GIDBLink variant={variant} />
         </div>
       </div>
 

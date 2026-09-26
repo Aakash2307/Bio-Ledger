@@ -44,6 +44,33 @@ function formatGenePanels(raw) {
   return String(raw).split("|").filter(Boolean).join(", ");
 }
 
+// Phenotypes arrive as one comma-joined string (e.g. "Spastic Paraplegia
+// 77 Autosomal Recessive,Neurometabolic Disorder Due To FARS2
+// Deficiency,..."). Split into a clean list of individual phenotype
+// names so each can render as its own chip instead of one dense
+// monospace paragraph that dwarfs the rest of the section's tiles.
+//
+// Some sources export names as a single underscored token instead of
+// space-separated words (e.g.
+// "MICROCEPHALY_AND_CHORIORETINOPATHY__AUTOSOMAL_RECESSIVE__3"). With no
+// spaces, the browser has nowhere to break the line, so a long one of
+// these just overflows its chip instead of wrapping — replacing runs of
+// underscores with spaces gives it real word-break points, and title-
+// casing keeps it readable next to phenotypes that arrived normally
+// spaced.
+function formatPhenotypesList(raw) {
+  if (raw == null || raw === "" || raw === "-") return [];
+  return String(raw)
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) =>
+      /_/.test(s)
+        ? s.replace(/_+/g, " ").trim().replace(/\b\w/g, (c) => c.toUpperCase())
+        : s
+    );
+}
+
 // HGVSc/HGVSp arrive as "<transcript or protein ID>:<c./p. notation>", e.g.
 // "ENST00000379370.7:c.4298+3_4299-57del" or "ENSP00000368677.3:p.Val31Met".
 // The Ensembl ID is redundant with NM_value/the gene symbol shown
@@ -354,6 +381,15 @@ const FIELD_LABEL_OVERRIDES = {
   feature: "Transcript id",
 };
 
+// Fields that get the full-width, chip-list treatment in DetailsSection
+// instead of the default half-width tile — matched against the
+// normalized key so it holds regardless of casing/underscore convention.
+// Phenotypes is a comma-joined list that can run to several long entries;
+// forcing it into a half-width tile stretches its neighboring tile to
+// match and turns the value into a wall of bold monospace text, so it
+// gets its own full-width row with each phenotype as a wrapped chip.
+const DETAILS_FULL_WIDTH_LIST_FIELDS = new Set(["phenotypes"]);
+
 // Groups the Details tab's fields into labeled sections (à la vgen's
 // Overview: Variant Identity / Population Variant Effect / Clinical
 // Context / Sequencing Confidence / Genotype Info), instead of one long
@@ -482,6 +518,14 @@ function DetailsTab({ variant }) {
 // tile rather than a flat underlined row, so a section with many fields
 // (Population Variant Effect can easily be 30+) still scans as a grid
 // rather than a wall of text.
+//
+// One exception: fields in DETAILS_FULL_WIDTH_LIST_FIELDS (currently just
+// Phenotypes) render as a full-width row of wrapped chips instead of a
+// half-width tile of bold monospace text. A long comma-joined value forced
+// into a half-width tile stretches the whole row to match its height and
+// reads as a dense wall of text; splitting it into chips that wrap onto
+// as many lines as needed keeps every value visible without distorting
+// the rest of the grid.
 function DetailsSection({ title, fields }) {
   return (
     <div style={{ border: `1px solid ${T.borderSoft}`, borderRadius: 10, padding: "14px 14px 12px", background: T.surface }}>
@@ -492,23 +536,72 @@ function DetailsSection({ title, fields }) {
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-        {fields.map(([key, value]) => (
-          <div
-            key={key}
-            style={{
-              border: `1px solid ${T.borderSoft}`, borderRadius: 7, padding: "7px 10px",
-              background: T.surfaceSunken,
-            }}
-          >
-            <div style={{ fontSize: 9.5, fontWeight: 700, color: T.textFaint, letterSpacing: 0.3, marginBottom: 2 }}>
-              {FIELD_LABEL_OVERRIDES[normalizeFieldKey(key)] || key.replace(/_/g, " ")}
+        {fields.map(([key, value]) => {
+          const norm = normalizeFieldKey(key);
+
+          if (DETAILS_FULL_WIDTH_LIST_FIELDS.has(norm)) {
+            return <FullWidthListTile key={key} fieldKey={key} value={value} />;
+          }
+
+          return (
+            <div
+              key={key}
+              style={{
+                border: `1px solid ${T.borderSoft}`, borderRadius: 7, padding: "7px 10px",
+                background: T.surfaceSunken,
+              }}
+            >
+              <div style={{ fontSize: 9.5, fontWeight: 700, color: T.textFaint, letterSpacing: 0.3, marginBottom: 2 }}>
+                {FIELD_LABEL_OVERRIDES[norm] || key.replace(/_/g, " ")}
+              </div>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: T.text, fontFamily: T.mono, wordBreak: "break-word" }}>
+                {formatScoreValue(value)}
+              </div>
             </div>
-            <div style={{ fontSize: 12.5, fontWeight: 600, color: T.text, fontFamily: T.mono, wordBreak: "break-word" }}>
-              {formatScoreValue(value)}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
+    </div>
+  );
+}
+
+// Full-width tile for comma-joined list fields (currently just
+// Phenotypes). Spans both grid columns and renders each item as its own
+// wrapping pill so a long list stays fully visible and legible instead of
+// collapsing into one dense paragraph.
+function FullWidthListTile({ fieldKey, value }) {
+  const items = formatPhenotypesList(value);
+  return (
+    <div
+      style={{
+        gridColumn: "1 / -1",
+        border: `1px solid ${T.borderSoft}`, borderRadius: 7, padding: "8px 10px",
+        background: T.surfaceSunken,
+      }}
+    >
+      <div style={{ fontSize: 9.5, fontWeight: 700, color: T.textFaint, letterSpacing: 0.3, marginBottom: 6 }}>
+        {FIELD_LABEL_OVERRIDES[normalizeFieldKey(fieldKey)] || fieldKey.replace(/_/g, " ")}
+      </div>
+      {items.length === 0 ? (
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: T.text, fontFamily: T.mono }}>N/A</div>
+      ) : (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, maxWidth: "100%" }}>
+          {items.map((item, i) => (
+            <span
+              key={i}
+              style={{
+                fontSize: 11.5, fontWeight: 600, color: T.text,
+                background: T.surfaceRaised, border: `1px solid ${T.borderSoft}`,
+                borderRadius: 12, padding: "3px 10px", lineHeight: 1.3,
+                maxWidth: "100%", boxSizing: "border-box",
+                wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "normal",
+              }}
+            >
+              {item}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,12 @@
+import { useState } from "react";
 import { T, panel, btnBase, CLASS_META } from "./variantTheme";
+
+// Ref/Alt sequences beyond this length get collapsed to a one-line
+// preview by default; click the cell to expand to the full wrapped
+// sequence. Keeps ordinary SNVs (1-2 chars) untouched while large indels
+// (which can run 100+ chars) don't force every row in the table to be as
+// tall as the single longest sequence in view.
+const SEQUENCE_PREVIEW_LENGTH = 12;
 
 // Only the columns the user wants visible in the (compact) variant list.
 // Clinical Significance (the raw ClinVar call) is always shown now — it
@@ -17,19 +25,27 @@ const TABLE_COLUMNS = [
   ["clin_sig", "Clinical Significance"],
   ["frequency", "Frequency"],
 ];
-// Every column but Consequence/Clinical Significance grows to fit its
-// content on one line (max-content) — those two are free text that can
-// run to several dozen characters once multiple terms are joined with
-// " / ", which was dragging the whole table far wider than useful and
-// forcing a long horizontal scroll just to read one cell. Capping their
-// width and letting them wrap to multiple lines keeps the row readable
-// without truncating anything.
+// Every column but Consequence/Clinical Significance/Ref/Alt grows to fit
+// its content on one line (max-content) — those columns are free-form
+// text (or, for Ref/Alt, a raw sequence) that can run to several dozen or
+// even 100+ characters, which was dragging the whole table far wider than
+// useful and forcing a long horizontal scroll just to read one cell.
+// Capping their width and letting them wrap to multiple lines keeps the
+// row readable without truncating anything.
 const COLUMN_TRACKS = {
   acmg_classification: "minmax(90px, max-content)",
   chrom: "minmax(70px, max-content)",
   pos: "minmax(80px, max-content)",
-  ref: "minmax(70px, max-content)",
-  alt: "minmax(70px, max-content)",
+  // Ref/Alt used to be "max-content" with the sequence truncated to 10
+  // chars + a native `title` tooltip for the rest — but a large indel can
+  // run to 100+ characters, and relying on a hover tooltip to read it
+  // (plus the truncated text still visually crowding the neighboring
+  // Symbol column) wasn't great. Bounded like Consequence/Clinical
+  // Significance instead, so a long sequence wraps onto extra lines
+  // within its own column rather than needing a hover to read the full
+  // value.
+  ref: "minmax(70px, 140px)",
+  alt: "minmax(70px, 140px)",
   gene: "minmax(90px, max-content)",
   varient_type: "minmax(130px, max-content)",
   consequence: "minmax(200px, 320px)",
@@ -45,6 +61,54 @@ function gridColsFor(columns) {
 // than on the row container).
 const cellBorder = { borderBottom: `1px solid ${T.borderSoft}` };
 
+// Shared base style for Ref/Alt cells. Ref/Alt hold raw sequence, not
+// natural-language text, so there are no word boundaries for the browser
+// to wrap on ("break-word" would treat the whole sequence as a single
+// unbreakable "word" and just overflow the column, same failure mode as
+// the phenotype tokens elsewhere in the app) — "break-all" is used
+// instead whenever a cell IS wrapped, since it can break at any
+// character. Whether a given cell wraps at all is decided per-cell in
+// SequenceCell below, based on length + expanded state.
+const sequenceCellBase = {
+  ...cellBorder,
+  padding: "8px 12px",
+  fontFamily: T.mono,
+  color: T.textMuted,
+  lineHeight: 1.4,
+};
+
+// One Ref or Alt cell. Short sequences (SNVs, small indels) just render
+// as-is on one line, same as before. Long sequences render truncated to
+// SEQUENCE_PREVIEW_LENGTH chars by default — click the cell to expand it
+// to the full sequence, wrapped across as many lines as it needs; click
+// again to collapse it back down. stopPropagation keeps that click from
+// also firing the row's onClick (which opens the variant detail panel).
+function SequenceCell({ value, cellKey, expandedCells, onToggle }) {
+  const str = value != null ? String(value) : "";
+  const isLong = str.length > SEQUENCE_PREVIEW_LENGTH;
+  const expanded = expandedCells.has(cellKey);
+  const showFull = !isLong || expanded;
+
+  return (
+    <div
+      onClick={isLong ? (e) => { e.stopPropagation(); onToggle(cellKey); } : undefined}
+      title={isLong ? (expanded ? "Click to collapse" : "Click to view full sequence") : undefined}
+      style={{
+        ...sequenceCellBase,
+        whiteSpace: showFull ? "normal" : "nowrap",
+        wordBreak: showFull ? "break-all" : "normal",
+        overflow: showFull ? "visible" : "hidden",
+        textOverflow: showFull ? "clip" : "ellipsis",
+        cursor: isLong ? "pointer" : "default",
+        textDecoration: isLong ? "underline dotted" : "none",
+        textUnderlineOffset: 2,
+      }}
+    >
+      {showFull ? str : `${str.slice(0, SEQUENCE_PREVIEW_LENGTH)}…`}
+    </div>
+  );
+}
+
 // ClinVar strings arrive as raw, comma/slash separated, lower_snake_case
 // tokens (e.g. "pathogenic,benign" or "conflicting_interpretations_of_
 // pathogenicity,benign"). Dedupe and prettify them for display.
@@ -58,18 +122,6 @@ function formatClinSig(raw) {
     .map((t) => t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()))
     .filter((t) => (seen.has(t) ? false : (seen.add(t), true)));
   return parts.length ? parts.join(" / ") : "No ClinVar submission";
-}
-
-// Large indels put the entire deleted/inserted sequence in REF or ALT —
-// some real-world exports run to 100+ characters. Left unbounded, one such
-// cell overflows straight through the neighboring columns (looks like
-// "extra genes" jammed into the row). Truncate for the compact list view;
-// the full sequence is still visible via the native title tooltip and in
-// the Overview tab's Sequence panel when the row is opened.
-function truncateSeq(seq, max = 10) {
-  if (seq == null) return seq;
-  const s = String(seq);
-  return s.length > max ? `${s.slice(0, max)}…` : s;
 }
 
 // ACMG_Classification values look like "pathogenic", "VUS", or a
@@ -118,6 +170,19 @@ export default function VariantTable({
 }) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const gridCols = gridColsFor(TABLE_COLUMNS);
+
+  // Which Ref/Alt cells are currently expanded, keyed by
+  // "<variant_id>::<row index>::ref|alt" so the same variant appearing
+  // twice (shouldn't normally happen, but the row key already guards for
+  // it) doesn't share expand state.
+  const [expandedCells, setExpandedCells] = useState(() => new Set());
+  const toggleCell = (key) => {
+    setExpandedCells((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
 
   return (
     <div style={{ padding: 18, borderRight: `1px solid ${T.border}` }}>
@@ -181,8 +246,8 @@ export default function VariantTable({
                   borderLeft: isSelected ? `2px solid ${T.accent}` : "2px solid transparent",
                   // NOTE: the row divider is intentionally NOT set here as a
                   // single borderBottom on this container. Consequence /
-                  // Clinical Significance wrap to 2+ lines on longer values
-                  // while every other cell stays single-line, and a
+                  // Clinical Significance / Ref / Alt wrap to 2+ lines on
+                  // longer values while other cells stay single-line, and a
                   // container-level border only reliably renders under the
                   // grid tracks that actually reach the container's content
                   // edge — with mixed wrapping heights that left the divider
@@ -198,8 +263,18 @@ export default function VariantTable({
                 </div>
                 <div style={{ ...cellBorder, padding: "8px 12px", fontFamily: T.mono, color: T.textMuted, whiteSpace: "nowrap" }}>{r.chrom}</div>
                 <div style={{ ...cellBorder, padding: "8px 12px", fontFamily: T.mono, color: T.textMuted, whiteSpace: "nowrap" }}>{r.pos}</div>
-                <div style={{ ...cellBorder, padding: "8px 12px", fontFamily: T.mono, color: T.textMuted, whiteSpace: "nowrap" }} title={r.ref}>{truncateSeq(r.ref)}</div>
-                <div style={{ ...cellBorder, padding: "8px 12px", fontFamily: T.mono, color: T.textMuted, whiteSpace: "nowrap" }} title={r.alt}>{truncateSeq(r.alt)}</div>
+                <SequenceCell
+                  value={r.ref}
+                  cellKey={`${r.variant_id}::${idx}::ref`}
+                  expandedCells={expandedCells}
+                  onToggle={toggleCell}
+                />
+                <SequenceCell
+                  value={r.alt}
+                  cellKey={`${r.variant_id}::${idx}::alt`}
+                  expandedCells={expandedCells}
+                  onToggle={toggleCell}
+                />
                 <div style={{ ...cellBorder, padding: "8px 12px", whiteSpace: "nowrap" }}>
                   <span style={{
                     display: "inline-block", width: 7, height: 7, borderRadius: "50%",

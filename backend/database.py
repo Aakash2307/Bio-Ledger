@@ -4,30 +4,30 @@ from datetime import date
 import os
 from dotenv import load_dotenv
 
-# DB_CONFIG = {
-#     "host": "127.0.0.1",
-#     "user": "root",
-#     "password": "root123",
-#     # password is changed from "root123" to ""
-#     # created database tzar_bio
-#     "database": "tzar_bio",
-#     "port": 3307, 
-#     # port changed from 3307 to 3306
-#     "cursorclass": pymysql.cursors.DictCursor,
-#     "autocommit": False,
-# }
-
-
-
 DB_CONFIG = {
-    "host": os.getenv("DB_HOST"),
-    "user": os.getenv("DB_USER"),
-    "password": os.getenv("DB_PASSWORD"),
-    "database": os.getenv("DB_NAME"),
-    "port": int(os.getenv("DB_PORT", "3306")),
+    "host": "127.0.0.1",
+    "user": "root",
+    "password": "root123",
+    # password is changed from "root123" to ""
+    # created database tzar_bio
+    "database": "tzar_bio",
+    "port": 3307, 
+    # port changed from 3307 to 3306
     "cursorclass": pymysql.cursors.DictCursor,
     "autocommit": False,
 }
+
+
+
+# DB_CONFIG = {
+#     "host": os.getenv("DB_HOST"),
+#     "user": os.getenv("DB_USER"),
+#     "password": os.getenv("DB_PASSWORD"),
+#     "database": os.getenv("DB_NAME"),
+#     "port": int(os.getenv("DB_PORT", "3306")),
+#     "cursorclass": pymysql.cursors.DictCursor,
+#     "autocommit": False,
+# }
 
 def get_connection():
     conn = pymysql.connect(**DB_CONFIG)

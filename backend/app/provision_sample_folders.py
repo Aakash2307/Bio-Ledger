@@ -53,7 +53,7 @@ RAW_DIR = Path(SAMPLE_DATA_DIR) / "raw"
 # Hardcoded input file + column name -- edit these to match your actual sheet.
 # Command-line args (if given) still override these, so you can also just run:
 #   python provision_sample_folders.py
-EXCEL_FILE_PATH = "/home/vedantjoshi/Desktop/sample_list.xlsx"  # <-- change this
+EXCEL_FILE_PATH = "/home/ngs/Desktop/sample_list.xlsx"  # <-- change this
 SAMPLE_ID_COLUMN = "Sample ID"                        # <-- change this
 
 

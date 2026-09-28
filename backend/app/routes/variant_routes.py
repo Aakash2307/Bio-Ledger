@@ -141,6 +141,39 @@ def check_sample(sid: str):
     return {"sid": sid, "types": ["germline", "somatic"]}
 
 
+# @sample_router.post("/{sid}/load")
+# def load_sample_file(sid: str, type: str = Query(..., pattern="^(germline|somatic)$")):
+#     """Steps 3-4: user picked a type -> check DB path, folder, file, then parse."""
+#     sid = sid.strip()
+#     _require_mount()
+
+#     sample, record = _find_sample_and_record(sid)
+#     if not sample or not record:
+#         raise HTTPException(404, "No sample found")
+
+#     rel = record.get(f"{type}_path")
+#     if not rel:
+#         raise HTTPException(404, f"No {type} path available")
+
+#     full = (RAW_DIR / rel).resolve()
+#     if RAW_DIR.resolve() not in full.parents:      # path-traversal guard
+#         raise HTTPException(400, "Invalid stored path")
+#     if not full.parent.is_dir():
+#         raise HTTPException(404, f"No {type} path available")
+#     if not full.is_file():
+#         raise HTTPException(404, f"No {type} file found")
+
+#     # Skip the expensive re-parse if the cache is same type and newer than the file
+#     cached = _find_cache_path(sid)
+#     fresh = (
+#         cached
+#         and _cached_type_label(sid) == type.capitalize()
+#         and os.path.getmtime(cached) >= full.stat().st_mtime
+#     )
+#     rows = None if fresh else parse_and_cache(str(full), sid, type)
+#     return {"sample_id": sid, "type": type, "rows_ingested": rows, "from_cache": bool(fresh)}
+
+
 @sample_router.post("/{sid}/load")
 def load_sample_file(sid: str, type: str = Query(..., pattern="^(germline|somatic)$")):
     """Steps 3-4: user picked a type -> check DB path, folder, file, then parse."""
@@ -156,19 +189,24 @@ def load_sample_file(sid: str, type: str = Query(..., pattern="^(germline|somati
         raise HTTPException(404, f"No {type} path available")
 
     full = (RAW_DIR / rel).resolve()
+
+    # ---- TEMP DEBUG: remove once fixed ----
+    print("LOAD DEBUG",
+          "\n  rel      =", repr(rel),
+          "\n  full     =", full,
+          "\n  exists   =", full.exists(),
+          "\n  is_dir   =", full.is_dir(),
+          "\n  parent   =", full.parent,
+          "\n  siblings =", sorted(p.name for p in full.parent.iterdir())[:30] if full.parent.is_dir() else "parent missing")
+    # ---------------------------------------
+
     if RAW_DIR.resolve() not in full.parents:      # path-traversal guard
         raise HTTPException(400, "Invalid stored path")
     if not full.parent.is_dir():
         raise HTTPException(404, f"No {type} path available")
+    if full.is_dir():
+        raise HTTPException(404, f"Stored {type} path is a folder, not a file: {rel}")
     if not full.is_file():
-        raise HTTPException(404, f"No {type} file found")
+        raise HTTPException(404, f"No {type} file found at: {rel}")
 
-    # Skip the expensive re-parse if the cache is same type and newer than the file
-    cached = _find_cache_path(sid)
-    fresh = (
-        cached
-        and _cached_type_label(sid) == type.capitalize()
-        and os.path.getmtime(cached) >= full.stat().st_mtime
-    )
-    rows = None if fresh else parse_and_cache(str(full), sid, type)
-    return {"sample_id": sid, "type": type, "rows_ingested": rows, "from_cache": bool(fresh)}
+    # ... rest unchanged (cache check + parse_and_cache)

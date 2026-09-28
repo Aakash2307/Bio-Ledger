@@ -26,6 +26,7 @@ app.include_router(sample_routes.router)
 app.include_router(dashboard_routes.router)
 app.include_router(report_routes.router)
 app.include_router(variant_routes.router)
+app.include_router(variant_routes.sample_router)   # sample-ID search: check + load
 app.include_router(gene_panel_routes.router)
 
 # Start the single-worker report generation queue

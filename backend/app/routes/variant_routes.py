@@ -7,17 +7,25 @@ Endpoints:
   GET  /api/variants/{sample_id}                -> paginated / filtered / sorted rows
   GET  /api/variants/{sample_id}/{variant_id}   -> full row for the detail panel
 
+  GET  /api/sample-files/{sid}/check            -> sid exists in samples + has a sample_records row
+  POST /api/sample-files/{sid}/load?type=...    -> check stored path/folder/file, parse into cache
+
 Wire it up in main.py with:
     from app.routes import variant_routes
     app.include_router(variant_routes.router)
+    app.include_router(variant_routes.sample_router)
 """
 
 import os
 import shutil
+from pathlib import Path
+
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Query # type: ignore
 
+from database import get_connection
 from app.services.variant_parser import (
     parse_and_cache, query_variants, get_summary, get_variant_detail,
+    _find_cache_path, _cached_type_label,
 )
 
 router = APIRouter(prefix="/api/variants", tags=["variants"])
@@ -75,3 +83,92 @@ def variant_detail(sample_id: str, variant_id: str):
     if not detail:
         raise HTTPException(status_code=404, detail="Variant not found")
     return detail
+
+
+# =========================================================
+# SAMPLE-ID SEARCH FLOW
+#   1. sid must exist in `samples`            -> else "No sample found"
+#   2. sample_records.sample_ref == samples.id -> else "No sample found"
+#   3. user picks germline / somatic (dialog on the frontend)
+#   4. stored path -> folder -> file, each checked in order
+# Separate prefix so it can't be swallowed by /{sample_id}/{variant_id}.
+# =========================================================
+
+SAMPLE_DATA_DIR = os.environ.get(
+    "SAMPLE_DATA_DIR",
+    "/mnt/genome-data/Mibiome/Bioledger/data/sample_data",
+)
+RAW_DIR = Path(SAMPLE_DATA_DIR) / "raw"
+
+sample_router = APIRouter(prefix="/api/sample-files", tags=["sample-files"])
+
+
+def _find_sample_and_record(sid: str):
+    """samples.sid -> samples.id -> sample_records.sample_ref = id (latest row)."""
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM samples WHERE sid = %s", (sid,))
+            sample = cur.fetchone()
+            if not sample:
+                return None, None
+            cur.execute("""
+                SELECT id, germline_path, somatic_path
+                FROM sample_records
+                WHERE sample_ref = %s
+                ORDER BY report_release_date DESC, id DESC
+                LIMIT 1
+            """, (sample["id"],))
+            return sample, cur.fetchone()
+    finally:
+        conn.close()
+
+
+def _require_mount():
+    # If the SMB share isn't mounted, every path check would fail with a
+    # misleading "no path available" -- report the real problem instead.
+    if not RAW_DIR.parent.is_dir():
+        raise HTTPException(503, "Sample storage is not available (share not mounted?)")
+
+
+@sample_router.get("/{sid}/check")
+def check_sample(sid: str):
+    """Steps 1-2: sid exists in samples AND has a sample_records row."""
+    sid = sid.strip()
+    sample, record = _find_sample_and_record(sid)
+    if not sample or not record:
+        raise HTTPException(404, "No sample found")
+    return {"sid": sid, "types": ["germline", "somatic"]}
+
+
+@sample_router.post("/{sid}/load")
+def load_sample_file(sid: str, type: str = Query(..., pattern="^(germline|somatic)$")):
+    """Steps 3-4: user picked a type -> check DB path, folder, file, then parse."""
+    sid = sid.strip()
+    _require_mount()
+
+    sample, record = _find_sample_and_record(sid)
+    if not sample or not record:
+        raise HTTPException(404, "No sample found")
+
+    rel = record.get(f"{type}_path")
+    if not rel:
+        raise HTTPException(404, f"No {type} path available")
+
+    full = (RAW_DIR / rel).resolve()
+    if RAW_DIR.resolve() not in full.parents:      # path-traversal guard
+        raise HTTPException(400, "Invalid stored path")
+    if not full.parent.is_dir():
+        raise HTTPException(404, f"No {type} path available")
+    if not full.is_file():
+        raise HTTPException(404, f"No {type} file found")
+
+    # Skip the expensive re-parse if the cache is same type and newer than the file
+    cached = _find_cache_path(sid)
+    fresh = (
+        cached
+        and _cached_type_label(sid) == type.capitalize()
+        and os.path.getmtime(cached) >= full.stat().st_mtime
+    )
+    rows = None if fresh else parse_and_cache(str(full), sid, type)
+    return {"sample_id": sid, "type": type, "rows_ingested": rows, "from_cache": bool(fresh)}

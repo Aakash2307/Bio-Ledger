@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef, useSyncExternalStore } from "
 import VariantSummary from "./VariantSummary";
 import VariantTable from "./VariantTable";
 import VariantDetailPanel from "./VariantDetailPanel";
+import SampleFileDialog from "./SampleFileDialog";
 import { T, panel } from "./variantTheme";
 import "../../css/VariantVisualization.css";
 
@@ -66,6 +67,7 @@ function makeStoreSetter(key) {
 }
 
 const API_BASE = "/api/variants";
+const SAMPLE_API = "/api/sample-files";
 const PAGE_SIZE = 100;
 
 export default function VariantVisualization() {
@@ -93,6 +95,12 @@ export default function VariantVisualization() {
   // "loading"/"uploading" state can't survive across an unmount.
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  // Sample-ID search flow state (also transient).
+  const [pendingSid, setPendingSid] = useState("");     // sid awaiting germline/somatic choice
+  const [dialogError, setDialogError] = useState("");   // error shown inside the dialog
+  const [searchError, setSearchError] = useState("");   // error shown under the search box
+  const [fileBusy, setFileBusy] = useState(false);
 
   const loadSummary = useCallback(async (sid = sampleId) => {
     if (!sid) return;
@@ -214,6 +222,62 @@ export default function VariantVisualization() {
     setPanelFilter(null);
     setSearch("");
     setSelected(null);
+    setSearchError("");
+    setPendingSid("");
+  };
+
+  // Steps 1-2: does the sample exist (samples.sid -> sample_records)?
+  // If yes, open the germline/somatic dialog; if not, show "No sample found".
+  const handleSampleSearch = async (rawSid) => {
+    const sid = (rawSid || "").trim();
+    if (!sid) return;
+    setSearchError("");
+    try {
+      const res = await fetch(`${SAMPLE_API}/${encodeURIComponent(sid)}/check`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setSearchError(err.detail || "No sample found");
+        return;
+      }
+      setDialogError("");
+      setPendingSid(sid);
+    } catch {
+      setSearchError("Could not reach the server");
+    }
+  };
+
+  // Steps 3-4: the user picked germline/somatic -> the backend checks the
+  // stored path, then the folder, then the file, and parses it if found.
+  const handlePickType = async (type) => {
+    const sid = pendingSid;
+    setFileBusy(true);
+    setDialogError("");
+    try {
+      const res = await fetch(
+        `${SAMPLE_API}/${encodeURIComponent(sid)}/load?type=${type}`,
+        { method: "POST" }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setDialogError(data.detail || "Failed to load file");
+        return;
+      }
+
+      setPendingSid("");
+      setSampleId(sid);
+      setClassFilter(null);
+      setGeneCategoryFilter(null);
+      setPanelFilter(null);
+      setSearch("");
+      setSelected(null);
+      setPage(1);
+      await loadSummary(sid);
+      await loadRows(sid);
+    } catch (err) {
+      setDialogError(err.message);
+    } finally {
+      setFileBusy(false);
+    }
   };
 
   return (
@@ -233,6 +297,8 @@ export default function VariantVisualization() {
         panelFilter={panelFilter}
         setPanelFilter={setPanelFilter}
         setPage={setPage}
+        onSampleSearch={handleSampleSearch}
+        searchError={searchError}
       />
 
       {/* Analysis-type tabs (SNVs/INDELs · CNVs · Fusions · Warnings) sit
@@ -286,6 +352,14 @@ export default function VariantVisualization() {
           </div>
         </div>
       )}
+
+      <SampleFileDialog
+        sid={pendingSid}
+        busy={fileBusy}
+        error={dialogError}
+        onPick={handlePickType}
+        onClose={() => setPendingSid("")}
+      />
     </div>
   );
 }

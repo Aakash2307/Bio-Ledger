@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   T, panel, btnBase,
   CLASS_META, CLASS_ORDER,
@@ -24,7 +25,12 @@ export default function VariantSummary({
   geneCategoryFilter, setGeneCategoryFilter,
   panelFilter, setPanelFilter,
   setPage,
+  onSampleSearch, searchError,
 }) {
+  // Text typed into the "Search sample ID" box. Kept local so typing does
+  // not trigger loadSummary/loadRows until the user actually searches.
+  const [query, setQuery] = useState("");
+
   const classTotal = CLASS_ORDER.reduce((sum, k) => sum + (summary.classes?.[k] || 0), 0) || 1;
   const geneCategoryTotal = GENE_CATEGORY_ORDER.reduce((sum, k) => sum + (summary.gene_categories?.[k] || 0), 0) || 1;
   const hasGeneCategoryData = Object.keys(summary.gene_categories || {}).length > 0;
@@ -45,8 +51,11 @@ export default function VariantSummary({
             Sample Id
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+            {/* Read-only: the loaded sample is set by the search flow or an
+                upload, so typing here can't fire a load per keystroke. */}
             <input
               value={sampleId}
+              readOnly
               onChange={(e) => setSampleId(e.target.value)}
               placeholder="e.g. 4A1643"
               style={{
@@ -79,13 +88,27 @@ export default function VariantSummary({
           </div>
         </div>
 
-        <div className="variant-summary-sample-search" style={{ width: 170, flex: "0 0 auto" }}>
-          <input
-            type="text"
-            placeholder="Search sample ID..."
-            aria-label="Search sample ID"
-            style={{ width: "100%", boxSizing: "border-box" }}
-          />
+        <div className="variant-summary-sample-search" style={{ flex: "0 0 auto" }}>
+          <div style={{ display: "flex", gap: 6 }}>
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") onSampleSearch?.(query); }}
+              placeholder="Search sample ID..."
+              aria-label="Search sample ID"
+              style={{ width: 170, boxSizing: "border-box" }}
+            />
+            <button
+              onClick={() => onSampleSearch?.(query)}
+              style={{ ...btnBase, background: T.accent, color: "#FFFFFF", padding: "6px 12px", border: "none" }}
+            >
+              Search
+            </button>
+          </div>
+          {searchError && (
+            <div style={{ marginTop: 4, fontSize: 12, color: "#b42318" }}>{searchError}</div>
+          )}
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto" }}>
@@ -98,7 +121,7 @@ export default function VariantSummary({
             <input type="file" accept=".xlsx,.csv,.tsv" hidden onChange={onUpload} />
           </label>
           <button
-            onClick={onClear}
+            onClick={() => { setQuery(""); onClear(); }}
             disabled={!sampleId && rowsCount === 0}
             style={{
               ...btnBase, background: "transparent", color: T.textMuted, padding: "9px 16px",

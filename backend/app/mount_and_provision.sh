@@ -11,8 +11,8 @@
 set -e  # stop immediately if any step fails
 
 # ---- EDIT THESE ----
-SMB_USER="your_username"          # <-- change this
-SMB_PASSWORD="your_password"      # <-- change this
+SMB_USER="IT"          # <-- change this
+SMB_PASSWORD="QAZxsw@13579"      # <-- change this
 SMB_SHARE="//10.10.2.7/genome-data"
 MOUNT_POINT="/mnt/genome-data"
 # ---------------------
@@ -46,7 +46,7 @@ echo "Confirmed target directory exists: ${TARGET_DIR}"
 # python3 with no pandas installed. So we explicitly call the venv's own
 # python3 binary here instead of a bare `python3` / `python3.11` etc.
 export SAMPLE_DATA_DIR="${TARGET_DIR}"
-VENV_PYTHON="/home/ngs/Desktop/BioLedger/backend/venv/bin/python3"
+VENV_PYTHON="/home/vedantjoshi/Desktop/vedant/Github/Bio-Ledger/backend/venv/bin/python3"
 
 if [ ! -x "${VENV_PYTHON}" ]; then
     echo "ERROR: venv python not found at ${VENV_PYTHON}"

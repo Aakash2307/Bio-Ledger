@@ -207,6 +207,61 @@ function GIDBLink({ variant }) {
   );
 }
 
+// Builds a gnomAD variant-page URL. gnomAD's variant route takes
+// "chrom-pos-ref-alt" (no "chr" prefix), e.g.
+// https://gnomad.broadinstitute.org/variant/7-117504290-C-T?dataset=gnomad_r4
+// gnomad_r4 is GRCh38 — change to "gnomad_r2_1" if the pipeline is on
+// GRCh37/hg19. Falls back to rsID when ref/alt aren't available; if
+// neither exists, falls back to the gnomAD homepage.
+function getGnomadUrl(variant) {
+  const chrom = dashToNull(variant.chrom);
+  const pos = dashToNull(variant.pos);
+  const ref = dashToNull(variant.ref);
+  const alt = dashToNull(variant.alt);
+  const rsid = dashToNull(variant.rsid);
+
+  const dataset = "gnomad_r4";
+  if (chrom && pos && ref && alt) {
+    const cleanChrom = String(chrom).replace(/^chr/i, "");
+    return `https://gnomad.broadinstitute.org/variant/${cleanChrom}-${pos}-${ref}-${alt}?dataset=${dataset}`;
+  }
+  if (rsid) {
+    const cleanRsid = String(rsid).replace(/^rs/i, "");
+    return `https://gnomad.broadinstitute.org/variant/rs${cleanRsid}?dataset=${dataset}`;
+  }
+  return "https://gnomad.broadinstitute.org/";
+}
+
+// Pill linking out to gnomAD for this variant — styled to match
+// ClinVarLink / GIDBLink.
+function GnomadLink({ variant }) {
+  const url = getGnomadUrl(variant);
+  if (!url) return null;
+
+  const brandColor = "#2e7d32";
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title="View this variant on gnomAD"
+      style={{ textDecoration: "none", display: "inline-flex" }}
+    >
+      <span
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px",
+          borderRadius: 999, fontSize: 11.5, fontWeight: 700, color: brandColor,
+          background: `${brandColor}18`, border: `1px solid ${brandColor}40`,
+          fontFamily: T.sans, whiteSpace: "nowrap",
+        }}
+      >
+ ↗
+      </span>
+    </a>
+  );
+}
+
 export default function VariantDetailPanel({ variant }) {
   const [tab, setTab] = useState("Overview");
 
@@ -266,9 +321,12 @@ function OverviewTab({ variant }) {
             <div style={{ fontSize: 10.5, fontWeight: 600, color: T.textFaint, marginTop: 3 }}>Genotype depth</div>
           </div>
         </div>
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
-          <ClinVarLink variant={variant} />
-          <GIDBLink variant={variant} />
+        <div style={{ marginLeft: "auto", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <ClinVarLink variant={variant} />
+            <GIDBLink variant={variant} />
+          </div>
+          <GnomadLink variant={variant} />
         </div>
       </div>
 

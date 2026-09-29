@@ -104,7 +104,11 @@ sample_router = APIRouter(prefix="/api/sample-files", tags=["sample-files"])
 
 
 def _find_sample_and_record(sid: str):
-    """samples.sid -> samples.id -> sample_records.sample_ref = id (latest row)."""
+    """samples.sid -> samples.id -> sample_records.sample_ref = id.
+
+    A sample can have several sample_records rows. Prefer a row that
+    actually has a stored path, so a newer record with NULL paths can't
+    shadow the one that does."""
     conn = get_connection()
     try:
         with conn.cursor() as cur:
@@ -116,7 +120,8 @@ def _find_sample_and_record(sid: str):
                 SELECT id, germline_path, somatic_path
                 FROM sample_records
                 WHERE sample_ref = %s
-                ORDER BY report_release_date DESC, id DESC
+                ORDER BY (germline_path IS NULL AND somatic_path IS NULL),
+                         report_release_date DESC, id DESC
                 LIMIT 1
             """, (sample["id"],))
             return sample, cur.fetchone()
@@ -141,39 +146,6 @@ def check_sample(sid: str):
     return {"sid": sid, "types": ["germline", "somatic"]}
 
 
-# @sample_router.post("/{sid}/load")
-# def load_sample_file(sid: str, type: str = Query(..., pattern="^(germline|somatic)$")):
-#     """Steps 3-4: user picked a type -> check DB path, folder, file, then parse."""
-#     sid = sid.strip()
-#     _require_mount()
-
-#     sample, record = _find_sample_and_record(sid)
-#     if not sample or not record:
-#         raise HTTPException(404, "No sample found")
-
-#     rel = record.get(f"{type}_path")
-#     if not rel:
-#         raise HTTPException(404, f"No {type} path available")
-
-#     full = (RAW_DIR / rel).resolve()
-#     if RAW_DIR.resolve() not in full.parents:      # path-traversal guard
-#         raise HTTPException(400, "Invalid stored path")
-#     if not full.parent.is_dir():
-#         raise HTTPException(404, f"No {type} path available")
-#     if not full.is_file():
-#         raise HTTPException(404, f"No {type} file found")
-
-#     # Skip the expensive re-parse if the cache is same type and newer than the file
-#     cached = _find_cache_path(sid)
-#     fresh = (
-#         cached
-#         and _cached_type_label(sid) == type.capitalize()
-#         and os.path.getmtime(cached) >= full.stat().st_mtime
-#     )
-#     rows = None if fresh else parse_and_cache(str(full), sid, type)
-#     return {"sample_id": sid, "type": type, "rows_ingested": rows, "from_cache": bool(fresh)}
-
-
 @sample_router.post("/{sid}/load")
 def load_sample_file(sid: str, type: str = Query(..., pattern="^(germline|somatic)$")):
     """Steps 3-4: user picked a type -> check DB path, folder, file, then parse."""
@@ -190,16 +162,6 @@ def load_sample_file(sid: str, type: str = Query(..., pattern="^(germline|somati
 
     full = (RAW_DIR / rel).resolve()
 
-    # ---- TEMP DEBUG: remove once fixed ----
-    print("LOAD DEBUG",
-          "\n  rel      =", repr(rel),
-          "\n  full     =", full,
-          "\n  exists   =", full.exists(),
-          "\n  is_dir   =", full.is_dir(),
-          "\n  parent   =", full.parent,
-          "\n  siblings =", sorted(p.name for p in full.parent.iterdir())[:30] if full.parent.is_dir() else "parent missing")
-    # ---------------------------------------
-
     if RAW_DIR.resolve() not in full.parents:      # path-traversal guard
         raise HTTPException(400, "Invalid stored path")
     if not full.parent.is_dir():
@@ -209,4 +171,20 @@ def load_sample_file(sid: str, type: str = Query(..., pattern="^(germline|somati
     if not full.is_file():
         raise HTTPException(404, f"No {type} file found at: {rel}")
 
-    # ... rest unchanged (cache check + parse_and_cache)
+    # Skip the expensive re-parse only if the cache is the SAME type and
+    # newer than the source file. Switching germline <-> somatic makes
+    # `fresh` False, so the new type is parsed and the old cache replaced.
+    cached = _find_cache_path(sid)
+    fresh = bool(
+        cached
+        and _cached_type_label(sid) == type.capitalize()
+        and os.path.getmtime(cached) >= full.stat().st_mtime
+    )
+    rows = None if fresh else parse_and_cache(str(full), sid, type)
+
+    return {
+        "sample_id": sid,
+        "type": type,
+        "rows_ingested": rows,
+        "from_cache": fresh,
+    }

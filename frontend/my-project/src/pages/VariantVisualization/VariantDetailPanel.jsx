@@ -256,7 +256,7 @@ function GnomadLink({ variant }) {
           fontFamily: T.sans, whiteSpace: "nowrap",
         }}
       >
- ↗
+        1000genome↗
       </span>
     </a>
   );

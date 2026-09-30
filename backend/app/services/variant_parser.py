@@ -13,6 +13,9 @@ Strategy:
   2. All later reads (list page, filter, sort, detail lookup) run as DuckDB
      SQL directly against that Parquet file. DuckDB does the heavy lifting
      (filter/sort/paginate) at native speed, so 37k rows is trivial.
+  3. Every Parquet written locally is also mirrored to the server share
+     (<SAMPLE_DATA_DIR>/cache). If the local cache is missing later, it is
+     restored from the server copy instead of re-parsing the source file.
 
 Install once: pip install pandas duckdb pyarrow openpyxl
 """
@@ -21,6 +24,8 @@ import os
 import glob
 import re
 import math
+import shutil
+import logging
 
 import pandas as pd # type: ignore
 
@@ -31,13 +36,24 @@ import duckdb # type: ignore
 from app.services.gene_panel_db import get_gene_category_lookup
 from app.services.gene_panel_parser import PANEL_MATCHERS
 
+log = logging.getLogger(__name__)
+
 # Single source of truth for which category each panel belongs to, reused
 # from gene_panel_parser.py's PANEL_MATCHERS instead of hand-duplicated
 # here — e.g. {"Somatic": "cancerous", "Cardiac": "non_cancerous", ...}
 PANEL_CATEGORY = {panel_label: category for _, panel_label, category in PANEL_MATCHERS}
 
+# Local cache: fast disk, DuckDB reads from here.
 CACHE_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "variant_cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
+
+# Server copy of the cache: <SAMPLE_DATA_DIR>/cache (same share as /raw).
+# Same env var / default as variant_routes.py so both always agree.
+SAMPLE_DATA_DIR = os.environ.get(
+    "SAMPLE_DATA_DIR",
+    "/mnt/genome-data/Mibiome/Bioledger/data/sample_data",
+)
+SERVER_CACHE_DIR = os.path.join(SAMPLE_DATA_DIR, "cache")
 
 # Map each canonical field the UI needs to a list of possible source column
 # names, in priority order — different pipeline exports (germline vs somatic
@@ -121,12 +137,85 @@ def _cache_path(sample_id: str, variant_type: str) -> str:
     return os.path.join(CACHE_DIR, f"{_safe_id(sample_id)}_{_type_label(variant_type)}_Results.parquet")
 
 
+# ---------------------------------------------------------------------------
+# Server cache mirror
+# ---------------------------------------------------------------------------
+
+def _server_available() -> bool:
+    """True if the SMB share is mounted (mirrors the check in
+    variant_routes._require_mount)."""
+    return os.path.isdir(SAMPLE_DATA_DIR)
+
+
+def _mirror_to_server(local_path: str, sample_id: str) -> bool:
+    """Copy a freshly written parquet to the server cache folder.
+    Replaces any older parquet for the same sample_id there (e.g. Germline
+    replaced by Somatic). Never raises: a server/share problem must not
+    fail the upload."""
+    try:
+        if not _server_available():
+            log.warning("Server share not mounted; skipped cache mirror for %s", sample_id)
+            return False
+        os.makedirs(SERVER_CACHE_DIR, exist_ok=True)
+
+        safe = _safe_id(sample_id)
+        for stale in glob.glob(os.path.join(SERVER_CACHE_DIR, f"{safe}_*_Results.parquet")):
+            os.remove(stale)
+
+        dest = os.path.join(SERVER_CACHE_DIR, os.path.basename(local_path))
+        tmp = dest + ".tmp"
+        shutil.copyfile(local_path, tmp)   # copyfile: SMB often rejects copy2's metadata
+        os.replace(tmp, dest)              # so a half-copied file is never visible
+        return True
+    except Exception as e:
+        log.warning("Cache mirror to server failed for %s: %s", sample_id, e)
+        return False
+
+
+def _restore_from_server(sample_id: str) -> str | None:
+    """If the local cache is gone, pull the newest server copy back and
+    return its local path (or None if there is no server copy)."""
+    try:
+        if not os.path.isdir(SERVER_CACHE_DIR):
+            return None
+        safe = _safe_id(sample_id)
+        matches = glob.glob(os.path.join(SERVER_CACHE_DIR, f"{safe}_*_Results.parquet"))
+        if not matches:
+            return None
+        src = max(matches, key=os.path.getmtime)
+        dest = os.path.join(CACHE_DIR, os.path.basename(src))
+        shutil.copyfile(src, dest)
+        return dest
+    except Exception as e:
+        log.warning("Cache restore from server failed for %s: %s", sample_id, e)
+        return None
+
+
+def sync_cache_to_server(sample_id: str) -> bool:
+    """Make sure the server has a copy of the current local cache.
+    Used when /load finds a fresh local cache and skips parsing, so
+    existing caches still get backed up. No-op if already up to date."""
+    try:
+        local = _find_cache_path(sample_id)
+        if not local:
+            return False
+        dest = os.path.join(SERVER_CACHE_DIR, os.path.basename(local))
+        if os.path.exists(dest) and os.path.getmtime(dest) >= os.path.getmtime(local):
+            return True   # server copy already current
+        return _mirror_to_server(local, sample_id)
+    except Exception as e:
+        log.warning("Cache sync to server failed for %s: %s", sample_id, e)
+        return False
+
+
 def _find_cache_path(sample_id: str) -> str | None:
     """Read-time lookup: callers (query_variants/get_summary/get_variant_detail)
     only have a sample_id, not the type, so glob for it. Only one cache file
     per sample_id is expected at a time (a fresh upload for that sample_id
     replaces the previous one — see parse_and_cache) but if more than one is
-    ever found (e.g. a stray leftover), the most recently written one wins."""
+    ever found (e.g. a stray leftover), the most recently written one wins.
+
+    If nothing is cached locally, fall back to the server copy."""
     safe = _safe_id(sample_id)
     matches = glob.glob(os.path.join(CACHE_DIR, f"{safe}_*_Results.parquet"))
     if matches:
@@ -134,7 +223,10 @@ def _find_cache_path(sample_id: str) -> str | None:
     # Backward-compat with caches written before this change
     # (variant_cache/<sample_id>.parquet, no type in the name).
     legacy = os.path.join(CACHE_DIR, f"{safe}.parquet")
-    return legacy if os.path.exists(legacy) else None
+    if os.path.exists(legacy):
+        return legacy
+    # Not cached locally -> try the server copy
+    return _restore_from_server(sample_id)
 
 
 def _cached_type_label(sample_id: str) -> str | None:
@@ -239,8 +331,9 @@ def _classify_gene(gene, lookup: dict) -> tuple[str | None, str | None]:
 
 
 def parse_and_cache(file_path: str, sample_id: str, variant_type: str) -> int:
-    """Parse the uploaded file once and write the normalized Parquet cache.
-    Returns the number of rows ingested."""
+    """Parse the uploaded file once and write the normalized Parquet cache
+    (locally, then mirrored to the server). Returns the number of rows
+    ingested."""
     if file_path.lower().endswith((".xlsx", ".xls")):
         sheet = _pick_data_sheet(file_path)
         df = pd.read_excel(file_path, sheet_name=sheet)
@@ -315,7 +408,9 @@ def parse_and_cache(file_path: str, sample_id: str, variant_type: str) -> int:
     if os.path.exists(legacy):
         os.remove(legacy)
 
-    df.to_parquet(_cache_path(sample_id, variant_type), index=False)
+    local_path = _cache_path(sample_id, variant_type)
+    df.to_parquet(local_path, index=False)
+    _mirror_to_server(local_path, sample_id)   # also save on the server
     return len(df)
 
 

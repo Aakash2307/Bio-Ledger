@@ -25,7 +25,7 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Query # ty
 from database import get_connection
 from app.services.variant_parser import (
     parse_and_cache, query_variants, get_summary, get_variant_detail,
-    _find_cache_path, _cached_type_label,
+    _find_cache_path, _cached_type_label, sync_cache_to_server,
 )
 
 router = APIRouter(prefix="/api/variants", tags=["variants"])
@@ -180,7 +180,15 @@ def load_sample_file(sid: str, type: str = Query(..., pattern="^(germline|somati
         and _cached_type_label(sid) == type.capitalize()
         and os.path.getmtime(cached) >= full.stat().st_mtime
     )
-    rows = None if fresh else parse_and_cache(str(full), sid, type)
+
+    if fresh:
+        rows = None
+        # Local cache already exists so parse_and_cache (which mirrors to
+        # the server) is skipped -- backfill the server copy here so
+        # pre-existing caches still end up in sample_data/cache.
+        sync_cache_to_server(sid)
+    else:
+        rows = parse_and_cache(str(full), sid, type)
 
     return {
         "sample_id": sid,

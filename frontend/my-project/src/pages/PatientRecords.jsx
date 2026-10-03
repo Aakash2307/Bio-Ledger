@@ -420,12 +420,15 @@ export default function PatientRecords() {
   const q = search.toLowerCase().trim();
   const getScore = (p) => {
     const name = (p.name ?? "").toLowerCase(), pid = (p.patient_id ?? "").toLowerCase();
-    if (name === q || pid === q) return 0;
-    if (name.startsWith(q) || pid.startsWith(q)) return 1;
+    const sids = (p.sids ?? []).map(s => String(s).toLowerCase());
+    if (name === q || pid === q || sids.includes(q)) return 0;
+    if (name.startsWith(q) || pid.startsWith(q) || sids.some(s => s.startsWith(q))) return 1;
     return 2;
   };
   const filtered = !q ? baseList : baseList
-    .filter(p => (p.patient_id ?? "").toLowerCase().includes(q) || (p.name ?? "").toLowerCase().includes(q))
+    .filter(p => (p.patient_id ?? "").toLowerCase().includes(q)
+      || (p.name ?? "").toLowerCase().includes(q)
+      || (p.sids ?? []).some(s => String(s).toLowerCase().includes(q)))
     .sort((a, b) => getScore(a) - getScore(b));
 
   const activePanelPatientId = selectedSample?.patient?.id;
@@ -538,7 +541,7 @@ export default function PatientRecords() {
                 width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by Name or Patient ID..."
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by Name , Patient ID or Sample ID"
                 style={{ width: "100%", padding: "11px 40px 11px 42px", borderRadius: 10, border: "1.5px solid #e2e8f0", background: "#fff", fontSize: 14, color: "#0f172a", outline: "none", fontFamily: "inherit", boxShadow: "0 1px 4px rgba(0,0,0,0.04)", transition: "border-color 0.15s, box-shadow 0.15s" }}
                 onFocus={e => { e.target.style.borderColor = "#3b82f6"; e.target.style.boxShadow = "0 0 0 3px rgba(59,130,246,0.12)"; }}
                 onBlur={e => { e.target.style.borderColor = "#e2e8f0"; e.target.style.boxShadow = "0 1px 4px rgba(0,0,0,0.04)"; }}

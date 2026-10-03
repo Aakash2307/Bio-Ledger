@@ -16,7 +16,8 @@ def get_all_patients():
             p.patient_id,
             p.name,
             p.gender,
-            COUNT(s.id) as total_samples
+            COUNT(s.id) as total_samples,
+            GROUP_CONCAT(s.sid SEPARATOR '||') as sids
         FROM patients p
         LEFT JOIN samples s ON p.id = s.patient_ref
         GROUP BY p.id
@@ -24,7 +25,13 @@ def get_all_patients():
 
     rows = cursor.fetchall()
     conn.close()
-    return [dict(row) for row in rows]
+
+    result = []
+    for row in rows:
+        d = dict(row)
+        d["sids"] = d["sids"].split("||") if d["sids"] else []
+        result.append(d)
+    return result
 
 
 def get_patient_by_id(patient_id: int):

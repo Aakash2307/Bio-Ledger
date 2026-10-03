@@ -2,7 +2,7 @@
 
 set -e
 
-ENV_FILE="/home/ngs/Desktop/BioLedger/backend/.env"
+ENV_FILE="/home/ngs/Desktop/SKY/Website/backend/.env"
 
 if [ ! -f "$ENV_FILE" ]; then
     echo "ERROR: .env file not found: $ENV_FILE"

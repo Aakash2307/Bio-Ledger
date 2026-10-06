@@ -55,7 +55,8 @@ GERMLINE_FILENAME = "Germline_Results.xlsx"
 SOMATIC_FILENAME = "Somatic_Results.xlsx"
 
 # Defaults; command-line args override these.
-EXCEL_FILE_PATH = "/home/ngs/Desktop/sample_list.xlsx"  # <-- change this
+EXCEL_FILE_PATH = "/home/vedantjoshi/Desktop/sample_list.xlsx"  # <-- change this
+# EXCEL_FILE_PATH changed from "/home/ngs/Desktop/sample_list.xlsx" to "/home/vedantjoshi/Desktop/sample_list.xlsx" after merging
 SAMPLE_ID_COLUMN = "Sample ID"                          # <-- change this
 
 

@@ -7,11 +7,11 @@ from dotenv import load_dotenv
 DB_CONFIG = {
     "host": "127.0.0.1",
     "user": "root",
-    "password": "root123",
+    "password": "",
     # password is changed from "root123" to ""
     # created database tzar_bio
     "database": "tzar_bio",
-    "port": 3307, 
+    "port": 3306, 
     # port changed from 3307 to 3306
     "cursorclass": pymysql.cursors.DictCursor,
     "autocommit": False,

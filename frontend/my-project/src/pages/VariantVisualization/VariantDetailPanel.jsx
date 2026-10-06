@@ -1,5 +1,8 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react"; // CHANGED: lazy + Suspense
 import { T, btnBase, GENE_CATEGORY_META } from "./variantTheme";
+
+// NEW: lazy so igv.js (large) only downloads when an analyst opens the Viewer tab.
+const IgvViewer = lazy(() => import("./IgvViewer"));
 
 const DETAIL_TABS = [
   "Overview",
@@ -262,7 +265,8 @@ function GnomadLink({ variant }) {
   );
 }
 
-export default function VariantDetailPanel({ variant }) {
+// CHANGED: accepts sampleId (passed from VariantVisualization)
+export default function VariantDetailPanel({ variant, sampleId }) {
   const [tab, setTab] = useState("Overview");
 
   return (
@@ -292,6 +296,25 @@ export default function VariantDetailPanel({ variant }) {
         <OverviewTab variant={variant} />
       ) : tab === "Details" ? (
         <DetailsTab variant={variant} />
+      ) : tab === "Viewer" ? (
+        // NEW: igv.js read viewer, loaded on demand
+        <Suspense
+          fallback={
+            <div style={{ textAlign: "center", color: T.textFaint, fontSize: 13, padding: "48px 12px" }}>
+              Loading viewer…
+            </div>
+          }
+        >
+          {/* key: a different sample means a different BAM -> fresh browser */}
+          <IgvViewer
+            key={sampleId}
+            sampleId={sampleId}
+            chrom={variant.chrom}
+            pos={variant.pos}
+            refAllele={variant.ref}
+            altAllele={variant.alt}
+          />
+        </Suspense>
       ) : (
         <div style={{ textAlign: "center", color: T.textFaint, fontSize: 13, padding: "48px 12px" }}>
           {tab} — coming soon.

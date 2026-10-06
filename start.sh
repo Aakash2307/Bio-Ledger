@@ -50,7 +50,7 @@ echo "========================================"
 echo "        Starting Backend"
 echo "========================================"
 
-gnome-terminal -- bash -c "
+env -u GTK_PATH -u GTK_MODULES -u GIO_EXTRA_MODULES gnome-terminal -- bash -c "
     cd '$BACKEND_DIR'
 
     echo 'Starting backend...'
@@ -82,7 +82,7 @@ echo "========================================"
 echo "        Starting Frontend"
 echo "========================================"
 
-gnome-terminal -- bash -c "
+env -u GTK_PATH -u GTK_MODULES -u GIO_EXTRA_MODULES gnome-terminal -- bash -c "
     cd '$FRONTEND_DIR'
 
     echo 'Starting frontend...'

@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware # type: ignore
 from database import create_tables, add_report_automation_schema
 from app.routes import patient_routes, sample_routes, dashboard_routes, report_routes
 from app.services.report_worker import start_worker
+from app.services.provisioning import start_provisioning   # NEW
 from app.routes import variant_routes
 from app.routes import gene_panel_routes
 
@@ -19,6 +20,9 @@ app.add_middleware(
 # Initialize DB tables on startup
 create_tables()
 add_report_automation_schema()
+
+# Create sample folders + expected file paths (background thread)
+start_provisioning()                                         # NEW
 
 # Register routers
 app.include_router(patient_routes.router)

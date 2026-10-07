@@ -33,13 +33,13 @@ import sys
 from pathlib import Path
 from collections import defaultdict
 
-import openpyxl #type: ignore
-from docx import Document #type: ignore
-from docx.oxml import OxmlElement #type: ignore
-from docx.oxml.ns import qn #type: ignore
-from docx.shared import Pt #type: ignore
-from docx.enum.text import WD_ALIGN_PARAGRAPH #type: ignore
-from docx.enum.table import WD_ALIGN_VERTICAL #type: ignore
+import openpyxl
+from docx import Document
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.shared import Pt
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.table import WD_ALIGN_VERTICAL
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -153,7 +153,7 @@ def find_table_by_label(doc, keyword):
             if keyword.lower() in text.lower():
                 for j in range(i + 1, len(elements)):
                     if elements[j].tag.endswith("}tbl"):
-                        from docx.table import Table #type: ignore
+                        from docx.table import Table
                         return Table(elements[j], doc)
     return None
 
@@ -749,7 +749,7 @@ def _add_snp_row(table, template_data_tr, template_annot_tr, variant: dict):
         tcs = new_annot_tr.findall(f"{{{NS}}}tc")
         # tc[0] = "Inference" label, tc[1] = wide merged cell → write Trait there
         if len(tcs) >= 2:
-            from docx.table import _Cell 
+            from docx.table import _Cell
             wide_cell = _Cell(tcs[1], annot_row)
             _set_cell_multiline(wide_cell, variant["trait"])
 

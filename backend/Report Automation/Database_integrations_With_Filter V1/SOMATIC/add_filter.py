@@ -115,7 +115,7 @@ def apply_phenotype_filter(excel_path):
 # FILTER 2 — CADD_PHRED > 20 (STRICT)
 # =====================================================
 def apply_cadd_filter(excel_path):
-    print("   🔻 Filter 1: CADD_PHRED > 20")
+    print("   🔻 Filter 1: CADD_phred >= 20")
 
     xls = pd.ExcelFile(excel_path)
     updated = {}
@@ -129,8 +129,8 @@ def apply_cadd_filter(excel_path):
 
         df = pd.read_excel(excel_path, sheet_name=sheet, dtype=str)
 
-        if "CADD_PHRED" in df.columns:
-            cadd = pd.to_numeric(df["CADD_PHRED"], errors="coerce")
+        if "CADD_phred" in df.columns:
+            cadd = pd.to_numeric(df["CADD_phred"], errors="coerce")
             df = df[cadd > 20]   # STRICT >
 
         updated[sheet] = df
@@ -145,16 +145,16 @@ def apply_cadd_filter(excel_path):
         for s, d in updated.items():
             d.to_excel(writer, sheet_name=s[:31], index=False)
 
-    update_summary_column(excel_path, "CADD_PHRED>20", counts)
+    update_summary_column(excel_path, "CADD_phred>=20", counts)
 
 
 # =====================================================
 # FILTER 3 — Tumor AF <= 0.2 (STRICT)
 # =====================================================
 def apply_taf_filter(excel_path):
-    print("   🔻 Filter 2: Tumor_AF<=0.38")
+    print("   🔻 Filter 2: VAF<=0.38")
 
-    TAF_COL = "TUMOR_ALLELE_FRACTION(ALT_ALLELE/TOTAL_GENOTYPE_DEPTH)"
+    TAF_COL = "VAF"
 
     xls = pd.ExcelFile(excel_path)
     updated = {}
@@ -182,14 +182,14 @@ def apply_taf_filter(excel_path):
         for s, d in updated.items():
             d.to_excel(writer, sheet_name=s[:31], index=False)
 
-    update_summary_column(excel_path, "Tumor_AF<=0.38", counts)
+    update_summary_column(excel_path, "VAF<=0.38", counts)
 
 
 
 def apply_population_filter(excel_path):
     print("   🔻 Filter 3 : AF Filter <= 0.001 (with missing values kept)")
 
-    TARGET_COL = "AF"
+    TARGET_COL = "AF_1000G"
     INVALID_VALUES = {"", "-", "na", "n/a", "null", "none"}
 
     xls = pd.ExcelFile(excel_path)
@@ -229,7 +229,7 @@ def apply_population_filter(excel_path):
         for s, d in updated.items():
             d.to_excel(writer, sheet_name=s[:31], index=False)
 
-    update_summary_column(excel_path, "AF Filter <= 0.001", counts)
+    update_summary_column(excel_path, "VAF <= 0.001", counts)
 
 # =====================================================
 # FUNNEL ORCHESTRATOR

@@ -251,8 +251,9 @@ export async function cancelReport(reportId) {
   return res.json();
 }
 
+
 export async function deleteReport(reportId) {
-  const res = await fetch(`${API_BASE_URL}/reports/${reportId}`, {
+  const res = await fetch(`${BASE_URL}/reports/${reportId}`, {
     method: "DELETE",
   });
   if (!res.ok) {

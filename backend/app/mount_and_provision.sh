@@ -2,7 +2,8 @@
 
 set -e
 
-ENV_FILE="/home/ngs/Desktop/SKY/Website/backend/.env"
+ENV_FILE="/home/vedantjoshi/Desktop/vedant/Github/Bio-Ledger/backend/.env"
+# ENV_FILE path changed from "/home/ngs/Desktop/SKY/Website/backend/.env" to "/home/vedantjoshi/Desktop/vedant/Github/Bio-Ledger/backend/.env" after merging
 
 if [ ! -f "$ENV_FILE" ]; then
     echo "ERROR: .env file not found: $ENV_FILE"

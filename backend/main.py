@@ -6,6 +6,7 @@ from app.services.report_worker import start_worker
 from app.services.provisioning import start_provisioning   # NEW
 from app.routes import variant_routes
 from app.routes import gene_panel_routes
+from app.routes import bam_routes   # NEW: igv.js session + BAM/BAI range serving
 
 app = FastAPI(title="Backend for Bioledger")
 
@@ -15,6 +16,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Range", "Accept-Ranges", "Content-Length"],  # NEW: needed by igv.js
 )
 
 # Initialize DB tables on startup
@@ -32,6 +34,7 @@ app.include_router(report_routes.router)
 app.include_router(variant_routes.router)
 app.include_router(variant_routes.sample_router)   # sample-ID search: check + load
 app.include_router(gene_panel_routes.router)
+app.include_router(bam_routes.router)              # NEW
 
 # Start the single-worker report generation queue
 start_worker()

@@ -348,7 +348,8 @@ export default function VariantVisualization() {
           />
 
           <div style={{ padding: 18, background: T.surfaceSunken, maxHeight: 616, overflowY: "auto" }}>
-            <VariantDetailPanel variant={selected} />
+            {/* CHANGED: sampleId is passed down so the Viewer tab can load this sample's BAM */}
+            <VariantDetailPanel variant={selected} sampleId={sampleId} />
           </div>
         </div>
       )}

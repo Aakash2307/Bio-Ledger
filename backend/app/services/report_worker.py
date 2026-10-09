@@ -51,6 +51,7 @@ DB_FOLDER = PIPELINE_ROOT / "Database_integrations_With_Filter V1"
 GERMLINE_INPUT_FOLDER = DB_FOLDER / "Input" / "germline"
 SOMATIC_INPUT_FOLDER = DB_FOLDER / "Input" / "somatic"
 PRS_INPUT_FOLDER = PIPELINE_ROOT / "PRS" / "Input"  # flat folder, no subfolders
+SOMATIC_CLEAN_OUTPUT = DB_FOLDER / "Input" / "somatic_clean"
 
 FINAL_REPORT_OUTPUT = PIPELINE_ROOT / "Final_Report" / "output"
 # CHANGED: completed reports are archived to <SAMPLE_DATA_DIR>/raw/{sid}/reports/
@@ -209,6 +210,7 @@ def _process_job(job: tuple):
         _reset_folder(GERMLINE_INPUT_FOLDER)
         _reset_folder(SOMATIC_INPUT_FOLDER)
         _reset_folder(PRS_INPUT_FOLDER)
+        _reset_folder(SOMATIC_CLEAN_OUTPUT)
 
         # CHANGED: inputs come from the share under whatever name they have there,
         # but the pipeline takes the sample ID from the first "_" token of the

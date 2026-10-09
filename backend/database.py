@@ -22,6 +22,7 @@ load_dotenv(Path(__file__).resolve().parent / ".env")
 
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "127.0.0.1"),
+    "host": os.getenv("DB_HOST","DB_IP"),
     "user": os.getenv("DB_USER"),
     "password": os.getenv("DB_PASSWORD"),
     "database": os.getenv("DB_NAME"),
@@ -29,8 +30,6 @@ DB_CONFIG = {
     "cursorclass": pymysql.cursors.DictCursor,
     "autocommit": False,
 }
-
-
 def get_connection():
     conn = pymysql.connect(**DB_CONFIG)
     return conn
@@ -116,6 +115,12 @@ def create_tables():
         "CREATE INDEX idx_patients_patient_id ON patients(patient_id)",
         "CREATE INDEX idx_samples_sid ON samples(sid)",
         "CREATE INDEX idx_records_sample_ref ON sample_records(sample_ref)",
+        # Already present on the live DB; this makes fresh databases match it,
+        # and provisioning's ON DUPLICATE KEY / one-row-per-sample logic rely on it.
+        # NOTE: if the live index has another name, running this adds a redundant
+        # second unique index (harmless, but check SHOW INDEX first). If rows
+        # with duplicate sample_ref exist it fails with "Duplicate entry".
+        "CREATE UNIQUE INDEX uq_records_sample_ref ON sample_records(sample_ref)",
     ]:
         try:
             cursor.execute(index_sql)
@@ -228,10 +233,15 @@ def get_sample_by_sid(sid: str):
     cursor = conn.cursor()
     cursor.execute("""
         SELECT s.id AS sample_id, s.sid, s.patient_ref,
-               sr.id AS record_id, sr.germline_path, sr.somatic_path, sr.prs_path,
-               sr.report_status, sr.report_release_date
+            sr.id AS record_id, sr.germline_path, sr.somatic_path, sr.prs_path,
+            sr.report_status, sr.report_release_date
         FROM samples s
-        JOIN sample_records sr ON sr.sample_ref = s.id
+        LEFT JOIN sample_records sr ON sr.id = (
+            SELECT id FROM sample_records
+            WHERE sample_ref = s.id
+            ORDER BY report_release_date DESC, id DESC
+            LIMIT 1
+        )
         WHERE s.sid = %s
     """, (sid,))
     row = cursor.fetchone()
@@ -295,6 +305,7 @@ def update_report_status(report_id: int, status: str, file_path: str = None, err
             "processing": "Processing",
             "completed": "Completed",
             "failed": "Failed",
+            "cancelled": "Cancelled",
         }.get(status, status)
 
         if status == "completed":

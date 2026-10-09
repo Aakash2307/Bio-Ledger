@@ -1,7 +1,7 @@
 """
 Report Automation routes.
 
-- upload input files (germline / somatic / prs) for a sample
+- check which input files a sample has on the share
 - trigger report generation
 - list report automation status (for the Report Automation page)
 - download / view a completed report
@@ -10,9 +10,7 @@ All logic lives in controllers/report_controller.py — this file only
 wires HTTP endpoints to controller calls and shapes the responses.
 """
 
-from typing import Optional
-
-from fastapi import APIRouter, UploadFile, File  # type: ignore
+from fastapi import APIRouter  # type: ignore
 from fastapi.responses import FileResponse  # type: ignore
 
 from app.controllers import report_controller as controller
@@ -20,14 +18,9 @@ from app.controllers import report_controller as controller
 router = APIRouter(tags=["report-automation"])  # no /api prefix — matches api.js's plain paths
 
 
-@router.post("/samples/{sid}/upload-inputs")
-async def upload_report_inputs(
-    sid: str,
-    germline_file: Optional[UploadFile] = File(None),
-    somatic_file: Optional[UploadFile] = File(None),
-    prs_file: Optional[UploadFile] = File(None),
-):
-    return await controller.upload_report_inputs(sid, germline_file, somatic_file, prs_file)
+@router.get("/samples/{sid}/inputs")
+async def sample_inputs(sid: str):
+    return await controller.get_sample_inputs(sid)
 
 
 @router.post("/reports/generate/{sid}")
@@ -70,6 +63,7 @@ async def view_report(report_id: int):
         media_type="application/pdf",
         headers={"Content-Disposition": f'inline; filename="{pdf_path.name}"'},
     )
+
 
 @router.post("/reports/{report_id}/cancel")
 async def cancel_report(report_id: int):

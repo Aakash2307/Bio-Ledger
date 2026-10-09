@@ -2,76 +2,42 @@
 Report Automation controller.
 
 Holds all business logic for report automation:
-- saving uploaded input files
+- finding a sample's input files on the share
 - converting docx -> pdf (cached)
 - enqueueing report generation jobs
 - reading report / sample state from the database
 
 Routes should only call into these functions and translate the
 results into HTTP responses.
+
+Inputs are NOT uploaded through the app any more: they are placed by hand in
+raw/{sid}/germline|somatic|prs on the share (folders are created by
+provisioning.py).
 """
 
-import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
 
-from fastapi import UploadFile, HTTPException  # type: ignore
+from fastapi import HTTPException  # type: ignore
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(BACKEND_ROOT))
 
 from database import (  # noqa: E402
     get_sample_by_sid,
-    set_sample_input_file,
     get_report,
     get_report_automation_list,
     get_report_stats,
     get_completed_reports_list,
 )
-from app.services.report_worker import enqueue_report_job , request_cancel  # noqa: E402
+from app.services.report_worker import enqueue_report_job, request_cancel  # noqa: E402
+from app.services.input_resolver import resolve_input, resolve_report  # noqa: E402
+from app.services.provisioning import storage_ready  # noqa: E402
 
-INPUT_STORAGE_ROOT = BACKEND_ROOT / "report_input_storage"
-INPUT_STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
-
+# PDFs are disposable (regenerated from the docx), so the cache stays on local disk
 REPORT_PDF_CACHE = BACKEND_ROOT / "report_pdf_cache"
 REPORT_PDF_CACHE.mkdir(parents=True, exist_ok=True)
-
-
-# def save_input_file(sid: str, file_type: str, file: UploadFile) -> str:
-#     if not file.filename.lower().endswith((".xlsx", ".xls")):
-#         raise HTTPException(status_code=400, detail=f"{file_type} file must be .xlsx or .xls")
-
-#     dest_path = INPUT_STORAGE_ROOT / f"{sid}_{file_type}_{file.filename}"
-#     with open(dest_path, "wb") as f:
-#         shutil.copyfileobj(file.file, f)
-
-#     try:
-#         set_sample_input_file(sid, file_type, str(dest_path))
-#     except ValueError as e:
-#         # DB didn't accept the path — don't leave an orphaned file on disk
-#         dest_path.unlink(missing_ok=True)
-#         raise HTTPException(status_code=400, detail=str(e))
-
-#     return str(dest_path)
-
-
-def save_input_file(sid: str, file_type: str, file: UploadFile) -> str:
-    if not file.filename.lower().endswith((".xlsx", ".xls")):
-        raise HTTPException(status_code=400, detail=f"{file_type} file must be .xlsx or .xls")
-
-    dest_path = INPUT_STORAGE_ROOT / f"{sid}_{file_type}_{file.filename}"
-    with open(dest_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-
-    try:
-        set_sample_input_file(sid, file_type, str(dest_path))
-    except ValueError as e:
-        dest_path.unlink(missing_ok=True)
-        raise HTTPException(status_code=400, detail=str(e))
-
-    return str(dest_path)
 
 
 def ensure_pdf(docx_path: Path) -> Path:
@@ -104,55 +70,51 @@ def ensure_pdf(docx_path: Path) -> Path:
     return pdf_path
 
 
-async def upload_report_inputs(
-    sid: str,
-    germline_file: Optional[UploadFile] = None,
-    somatic_file: Optional[UploadFile] = None,
-    prs_file: Optional[UploadFile] = None,
-):
+async def get_sample_inputs(sid: str):
+    """Which input files exist on the share for this sample (feeds the
+    'Use this sample' button in the UI)."""
     sample = get_sample_by_sid(sid)
     if not sample:
         raise HTTPException(status_code=404, detail="Sample not found")
+    if not storage_ready():
+        raise HTTPException(status_code=503, detail="Storage share is not available")
 
-    if not (germline_file or somatic_file or prs_file):
-        raise HTTPException(status_code=400, detail="At least one input file is required")
-
-    germline_path = save_input_file(sid, "germline", germline_file) if germline_file else None
-    somatic_path = save_input_file(sid, "somatic", somatic_file) if somatic_file else None
-    prs_path = save_input_file(sid, "prs", prs_file) if prs_file else None
-
-    return {
-        "status": "uploaded",
-        "sid": sid,
-        "germline_path": germline_path,
-        "somatic_path": somatic_path,
-        "prs_path": prs_path,
-    }
+    out = {"sid": sid}
+    for kind in ("germline", "somatic", "prs"):
+        found = resolve_input(sid, kind, sample.get(f"{kind}_path"))
+        out[kind] = found.name if found else None
+    out["ready"] = any(out[k] for k in ("germline", "somatic", "prs"))
+    return out
 
 
 async def generate_report(sid: str):
     sample = get_sample_by_sid(sid)
     if not sample:
         raise HTTPException(status_code=404, detail="Sample not found")
+    if not storage_ready():
+        raise HTTPException(status_code=503, detail="Storage share is not available")
 
-    germline_path = sample.get("germline_path")
-    somatic_path = sample.get("somatic_path")
-    prs_path = sample.get("prs_path")
+    # DB paths are only *expected* locations, so check the files really exist
+    # (falls back to the newest .xlsx in raw/{sid}/{kind}/)
+    germline = resolve_input(sid, "germline", sample.get("germline_path"))
+    somatic = resolve_input(sid, "somatic", sample.get("somatic_path"))
+    prs = resolve_input(sid, "prs", sample.get("prs_path"))
 
-    if not (germline_path or somatic_path or prs_path):
-        raise HTTPException(status_code=400, detail="No input files uploaded yet for this sample")
+    if not (germline or somatic or prs):
+        raise HTTPException(
+            status_code=400,
+            detail=f"No input files found for {sid} in raw/{sid}/germline, somatic or prs",
+        )
 
-    # NOTE: generation now proceeds with whichever inputs are present.
-    # If generate_report.py / enqueue_report_job assumes all three files
-    # exist, it needs to be updated to handle None for the missing ones.
     report_id = enqueue_report_job(
         sid,
-        germline_path,
-        somatic_path,
-        prs_path,
+        str(germline) if germline else None,
+        str(somatic) if somatic else None,
+        str(prs) if prs else None,
         sample["sample_id"],
     )
     return {"status": "queued", "report_id": report_id, "sid": sid}
+
 
 async def cancel_report(report_id: int):
     report = get_report(report_id)
@@ -198,7 +160,7 @@ async def download_report(report_id: int):
     if report["status"] != "completed" or not report.get("file_path"):
         raise HTTPException(status_code=400, detail=f"Report is not ready (status: {report['status']})")
 
-    file_path = Path(report["file_path"])
+    file_path = resolve_report(report["file_path"])
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Report file missing on disk")
 
@@ -214,9 +176,8 @@ async def view_report(report_id: int):
     if report["status"] != "completed" or not report.get("file_path"):
         raise HTTPException(status_code=400, detail=f"Report is not ready (status: {report['status']})")
 
-    docx_path = Path(report["file_path"])
+    docx_path = resolve_report(report["file_path"])
     if not docx_path.exists():
         raise HTTPException(status_code=404, detail="Report file missing on disk")
 
     return ensure_pdf(docx_path)
-

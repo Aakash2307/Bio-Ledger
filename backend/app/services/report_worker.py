@@ -40,6 +40,7 @@ BACKEND_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(BACKEND_ROOT))  # so `import database` works
 
 from database import create_report_record, update_report_status, get_report  # noqa: E402
+from app.services.input_resolver import sample_reports_dir, report_rel  # noqa: E402  # CHANGED
 
 # =========================================================
 # PATHS - adjust ONLY if you rename/move the pipeline folder
@@ -50,10 +51,11 @@ DB_FOLDER = PIPELINE_ROOT / "Database_integrations_With_Filter V1"
 GERMLINE_INPUT_FOLDER = DB_FOLDER / "Input" / "germline"
 SOMATIC_INPUT_FOLDER = DB_FOLDER / "Input" / "somatic"
 PRS_INPUT_FOLDER = PIPELINE_ROOT / "PRS" / "Input"  # flat folder, no subfolders
+SOMATIC_CLEAN_OUTPUT = DB_FOLDER / "Input" / "somatic_clean"
 
 FINAL_REPORT_OUTPUT = PIPELINE_ROOT / "Final_Report" / "output"
-ARCHIVE_FOLDER = BACKEND_ROOT / "report_archive"  # where completed reports get renamed + stored
-ARCHIVE_FOLDER.mkdir(parents=True, exist_ok=True)
+# CHANGED: completed reports are archived to <SAMPLE_DATA_DIR>/raw/{sid}/reports/
+# (see input_resolver.sample_reports_dir) instead of backend/report_archive
 
 MASTER_SCRIPT = PIPELINE_ROOT / "master_pipeline.sh"
 
@@ -208,13 +210,18 @@ def _process_job(job: tuple):
         _reset_folder(GERMLINE_INPUT_FOLDER)
         _reset_folder(SOMATIC_INPUT_FOLDER)
         _reset_folder(PRS_INPUT_FOLDER)
+        _reset_folder(SOMATIC_CLEAN_OUTPUT)
 
+        # CHANGED: inputs come from the share under whatever name they have there,
+        # but the pipeline takes the sample ID from the first "_" token of the
+        # filename, so stage them under normalized {sid}_... names. The originals
+        # on the share are never touched.
         if germline_path:
-            shutil.copy(germline_path, GERMLINE_INPUT_FOLDER / Path(germline_path).name)
+            shutil.copy(germline_path, GERMLINE_INPUT_FOLDER / f"{sid}_Germline_Results.xlsx")
         if somatic_path:
-            shutil.copy(somatic_path, SOMATIC_INPUT_FOLDER / Path(somatic_path).name)
+            shutil.copy(somatic_path, SOMATIC_INPUT_FOLDER / f"{sid}_Somatic_Results.xlsx")
         if prs_path:
-            shutil.copy(prs_path, PRS_INPUT_FOLDER / Path(prs_path).name)
+            shutil.copy(prs_path, PRS_INPUT_FOLDER / f"{sid}_Merged.xlsx")
     except Exception as e:
         update_report_status(report_id, status="failed", error_log=f"Failed to stage input files: {e}")
         return
@@ -301,16 +308,18 @@ def _process_job(job: tuple):
         return
 
     source_file = max(output_files, key=lambda p: p.stat().st_mtime)  # most recently written
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    archived_path = ARCHIVE_FOLDER / f"{sid}_{timestamp}{source_file.suffix}"
 
+    # CHANGED: archive to raw/{sid}/reports/{sid}_Report_r{report_id}.ext
+    # (report_id keeps re-runs side by side and ties each file to its DB row)
     try:
+        archived_path = sample_reports_dir(sid) / f"{sid}_Report_r{report_id}{source_file.suffix}"
         shutil.move(str(source_file), str(archived_path))
     except Exception as e:
         update_report_status(report_id, status="failed", error_log=f"Failed to archive output: {e}")
         return
 
-    update_report_status(report_id, status="completed", file_path=str(archived_path), stage="Complete")
+    # CHANGED: store the path relative to raw/ (resolve_report() turns it back)
+    update_report_status(report_id, status="completed", file_path=report_rel(archived_path), stage="Complete")
 
 
 def _reset_folder(folder: Path):

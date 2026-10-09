@@ -183,3 +183,8 @@
 2026-10-07 12:18:35,290Z | user='ip:127.0.0.1' sid='4A0030' action=bam status=206 method=GET range='bytes=3262768342-3262768367'
 2026-10-07 12:18:35,537Z | user='ip:127.0.0.1' sid='4A0030' action=bam status=206 method=GET range='bytes=3262650579-3262650604'
 2026-10-07 12:18:35,564Z | user='ip:127.0.0.1' sid='4A0030' action=bam status=206 method=GET range='bytes=3262665621-3262783938'
+2026-10-08 07:07:30,926Z | user='ip:127.0.0.1' sid='4A0030' action=session status=200 
+2026-10-08 07:07:56,509Z | user='ip:127.0.0.1' sid='4A0030' action=bai status=200 method=GET range=None
+2026-10-08 07:07:59,927Z | user='ip:127.0.0.1' sid='4A0030' action=bam status=206 method=GET range='bytes=0-63999'
+2026-10-08 07:08:01,259Z | user='ip:127.0.0.1' sid='4A0030' action=bam status=206 method=GET range='bytes=2273289858-2273289883'
+2026-10-08 07:08:01,878Z | user='ip:127.0.0.1' sid='4A0030' action=bam status=206 method=GET range='bytes=2272420165-2273306879'

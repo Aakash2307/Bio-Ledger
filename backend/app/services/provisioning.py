@@ -1,22 +1,30 @@
 """
 Startup provisioning: for every sample in the DB, make sure
-raw/{sid}/germline, raw/{sid}/somatic and raw/{sid}/prs exist, and seed the
-expected file paths in sample_records.
+raw/{sid}/germline, somatic, prs and reports exist, and seed the expected
+input file paths in sample_records.
+
+Layout per sample (everything for a sample lives in one folder):
+    raw/{sid}/germline/   inputs, placed by hand
+    raw/{sid}/somatic/
+    raw/{sid}/prs/
+    raw/{sid}/reports/    generated reports (written by the report worker)
 
 Idempotent and non-destructive:
   - existing folders and their contents are never touched (exist_ok=True)
   - existing germline_path / somatic_path / prs_path values are never
-    overwritten (COALESCE), so paths set by the upload feature survive restarts
+    overwritten (COALESCE), so paths already in the DB survive restarts
 
 Concurrency safety:
   - one short transaction per sample (commit each), so locks are brief
   - deadlocks (MySQL error 1213) are retried
   - a MySQL advisory lock ensures only one provisioning run at a time
-    (multiple workers / reload restarts just skip)
+    (multiple workers / reload restarts just skip, and the log says
+    which connection holds the lock)
 
 Environment (.env):
   MOUNT_POINT      mount point of the SMB share        (server: /mnt/genome-data)
-  SAMPLE_DATA_DIR  folder that contains raw/            (server: <mount>/Mibiome/Bioledger/data/sample_data)
+  SAMPLE_DATA_DIR  folder that contains raw/
+                   (server: <mount>/Mibiome/Bioledger/data/sample_data)
   REQUIRE_MOUNT    "true" (default) = skip unless MOUNT_POINT is a real mount
                    "false"          = plain local folder, e.g. a developer laptop
 
@@ -74,34 +82,53 @@ def storage_ready() -> bool:
     return True
 
 
-def ensure_folders(sid: str) -> bool:
-    """Create raw/{sid}/germline, somatic and prs if missing.
-    Returns True if the sample folder itself was newly created."""
+def ensure_folders(sid: str):
+    """Create raw/{sid}/germline|somatic|prs|reports if missing.
+    Returns (sample_folder_is_new, reports_folder_was_created)."""
     folder = RAW_DIR / sid
     is_new = not folder.exists()
-    (folder / "germline").mkdir(parents=True, exist_ok=True)
-    (folder / "somatic").mkdir(parents=True, exist_ok=True)
-    (folder / "prs").mkdir(parents=True, exist_ok=True)
-    return is_new
+    for sub in ("germline", "somatic", "prs"):
+        (folder / sub).mkdir(parents=True, exist_ok=True)
+    reports = folder / "reports"
+    reports_new = not reports.exists()
+    reports.mkdir(parents=True, exist_ok=True)
+    return is_new, reports_new
 
 
 def write_expected_paths(cur, sample_id, sid: str) -> None:
     """Fill germline_path / somatic_path / prs_path only where still empty.
-    Plain INSERT ... VALUES (no SELECT), so `samples` is never locked."""
+    Updates the sample's latest sample_records row; inserts one only if the
+    sample has none."""
+    germ = f"{sid}/germline/{GERMLINE_FILENAME}"
+    som = f"{sid}/somatic/{SOMATIC_FILENAME}"
+    prs = f"{sid}/prs/{prs_filename(sid)}"
     cur.execute(
         """
-        INSERT INTO sample_records (sample_ref, germline_path, somatic_path, prs_path)
-        VALUES (%s, %s, %s, %s)
-        ON DUPLICATE KEY UPDATE
-            germline_path = COALESCE(germline_path, VALUES(germline_path)),
-            somatic_path  = COALESCE(somatic_path,  VALUES(somatic_path)),
-            prs_path      = COALESCE(prs_path,      VALUES(prs_path))
+        SELECT id FROM sample_records WHERE sample_ref = %s
+        ORDER BY report_release_date DESC, id DESC LIMIT 1
         """,
-        (sample_id,
-         f"{sid}/germline/{GERMLINE_FILENAME}",
-         f"{sid}/somatic/{SOMATIC_FILENAME}",
-         f"{sid}/prs/{prs_filename(sid)}"),
+        (sample_id,),
     )
+    row = cur.fetchone()
+    if row:
+        cur.execute(
+            """
+            UPDATE sample_records SET
+                germline_path = COALESCE(germline_path, %s),
+                somatic_path  = COALESCE(somatic_path,  %s),
+                prs_path      = COALESCE(prs_path,      %s)
+            WHERE id = %s
+            """,
+            (germ, som, prs, row["id"]),
+        )
+    else:
+        cur.execute(
+            """
+            INSERT INTO sample_records (sample_ref, germline_path, somatic_path, prs_path)
+            VALUES (%s, %s, %s, %s)
+            """,
+            (sample_id, germ, som, prs),
+        )
 
 
 def _write_paths_committed(conn, sample_id, sid: str) -> None:
@@ -127,13 +154,25 @@ def provision_all() -> None:
 
     conn = get_connection()
     got_lock = False
+    holder = info = None
     try:
         # Only one provisioning run at a time (across workers / restarts).
         with conn.cursor() as cur:
             cur.execute("SELECT GET_LOCK(%s, 0) AS got", (LOCK_NAME,))
             got_lock = cur.fetchone()["got"] == 1
+            if not got_lock:
+                # Find out who holds it, to make the skip diagnosable.
+                cur.execute("SELECT IS_USED_LOCK(%s) AS holder", (LOCK_NAME,))
+                holder = cur.fetchone()["holder"]
+                if holder:
+                    cur.execute(
+                        "SELECT user, host, time, command "
+                        "FROM information_schema.processlist WHERE id = %s",
+                        (holder,),
+                    )
+                    info = cur.fetchone()
         if not got_lock:
-            print("[provision] SKIPPED: another provisioning run is active")
+            print(f"[provision] SKIPPED: lock held by connection {holder} {info}")
             return
 
         with conn.cursor() as cur:
@@ -141,20 +180,23 @@ def provision_all() -> None:
             samples = cur.fetchall()
         conn.commit()  # end the read transaction, hold no locks
 
-        created = existing = failed = 0
+        created = existing = new_reports = failed = 0
         for row in samples:
             sid = row["sid"]
             try:
-                if ensure_folders(sid):
+                is_new, reports_new = ensure_folders(sid)
+                if is_new:
                     created += 1
                 else:
                     existing += 1
+                if reports_new:
+                    new_reports += 1
                 _write_paths_committed(conn, row["id"], sid)
             except Exception as e:
                 failed += 1
                 print(f"[provision] {sid}: {e}")
         print(f"[provision] samples={len(samples)} new_folders={created} "
-              f"already_there={existing} failed={failed}")
+              f"already_there={existing} new_report_folders={new_reports} failed={failed}")
     finally:
         if got_lock:
             try:

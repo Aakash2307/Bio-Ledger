@@ -1,13 +1,15 @@
 """
 Startup provisioning: for every sample in the DB, make sure
-raw/{sid}/germline, somatic, prs and reports exist, and seed the expected
-input file paths in sample_records.
+raw/{sid}/germline, somatic, prs, reports and outputs exist, and seed the
+expected input file paths in sample_records.
 
 Layout per sample (everything for a sample lives in one folder):
     raw/{sid}/germline/   inputs, placed by hand
     raw/{sid}/somatic/
     raw/{sid}/prs/
     raw/{sid}/reports/    generated reports (written by the report worker)
+    raw/{sid}/outputs/    per-run pipeline outputs (written by the report worker)
+        r{report_id}/     created by the worker when a run starts, see run_output_dir()
 
 Idempotent and non-destructive:
   - existing folders and their contents are never touched (exist_ok=True)
@@ -52,6 +54,7 @@ RAW_DIR = Path(SAMPLE_DATA_DIR) / "raw"
 
 GERMLINE_FILENAME = "Germline_Results.xlsx"
 SOMATIC_FILENAME = "Somatic_Results.xlsx"
+OUTPUTS_SUBDIR = "outputs"  # CHANGED
 
 LOCK_NAME = "bioledger_provisioning"
 DEADLOCK_ERRNO = 1213
@@ -83,16 +86,29 @@ def storage_ready() -> bool:
 
 
 def ensure_folders(sid: str):
-    """Create raw/{sid}/germline|somatic|prs|reports if missing.
-    Returns (sample_folder_is_new, reports_folder_was_created)."""
+    """Create raw/{sid}/germline|somatic|prs|reports|outputs if missing.
+    Returns (sample_folder_is_new, [subfolder names created just now])."""
     folder = RAW_DIR / sid
     is_new = not folder.exists()
-    for sub in ("germline", "somatic", "prs"):
-        (folder / sub).mkdir(parents=True, exist_ok=True)
-    reports = folder / "reports"
-    reports_new = not reports.exists()
-    reports.mkdir(parents=True, exist_ok=True)
-    return is_new, reports_new
+    created = []  # CHANGED
+    for sub in ("germline", "somatic", "prs", "reports", OUTPUTS_SUBDIR):  # CHANGED
+        path = folder / sub  # CHANGED
+        if not path.exists():  # CHANGED
+            created.append(sub)  # CHANGED
+        path.mkdir(parents=True, exist_ok=True)  # CHANGED
+    return is_new, created  # CHANGED
+
+
+def run_output_dir(sid: str, report_id: int) -> Path:  # CHANGED
+    """Folder for one pipeline run's outputs: raw/{sid}/outputs/r{report_id}/.
+    Called by the report worker when a run starts. Creates the folder if it
+    is missing. Raises if the share is not mounted, so it never writes to
+    the local disk by mistake."""
+    if not storage_ready():  # CHANGED
+        raise RuntimeError("storage not ready: share not mounted or missing")  # CHANGED
+    path = RAW_DIR / sid / OUTPUTS_SUBDIR / f"r{report_id}"  # CHANGED
+    path.mkdir(parents=True, exist_ok=True)  # CHANGED
+    return path  # CHANGED
 
 
 def write_expected_paths(cur, sample_id, sid: str) -> None:
@@ -180,23 +196,23 @@ def provision_all() -> None:
             samples = cur.fetchall()
         conn.commit()  # end the read transaction, hold no locks
 
-        created = existing = new_reports = failed = 0
+        created = existing = new_subfolders = failed = 0  # CHANGED
         for row in samples:
             sid = row["sid"]
             try:
-                is_new, reports_new = ensure_folders(sid)
+                is_new, made = ensure_folders(sid)  # CHANGED
                 if is_new:
                     created += 1
                 else:
                     existing += 1
-                if reports_new:
-                    new_reports += 1
+                new_subfolders += len(made)  # CHANGED
                 _write_paths_committed(conn, row["id"], sid)
             except Exception as e:
                 failed += 1
                 print(f"[provision] {sid}: {e}")
-        print(f"[provision] samples={len(samples)} new_folders={created} "
-              f"already_there={existing} new_report_folders={new_reports} failed={failed}")
+        print(f"[provision] samples={len(samples)} new_folders={created} "  # CHANGED
+              f"already_there={existing} new_subfolders={new_subfolders} "  # CHANGED
+              f"failed={failed}")  # CHANGED
     finally:
         if got_lock:
             try:

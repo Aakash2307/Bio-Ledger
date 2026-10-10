@@ -218,6 +218,11 @@ export function getReportDownloadUrl(reportId) {
   return `${BASE_URL}/reports/${reportId}/download`;
 }
 
+
+export function getSampleOutputDownloadUrl(sid, kind) {
+  return `${BASE_URL}/samples/${encodeURIComponent(sid)}/outputs/${kind}/download`;
+}
+
 export function getReportViewUrl(reportId) {
   return `${BASE_URL}/reports/${reportId}/view`;
 }

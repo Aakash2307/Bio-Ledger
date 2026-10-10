@@ -1,11 +1,12 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
   getReportAutomationList,
-  getSampleInputs, // CHANGED (replaces uploadReportInputs)
+  getSampleInputs,
   generateReport,
   getReportStatus,
   cancelReport,
   getReportDownloadUrl,
+  getSampleOutputDownloadUrl, // CHANGED
 } from "../api"; // adjust this path to wherever your api.js actually lives
 import "../css/ReportAutomation.css"; // adjust this path to wherever your CSS file actually lives
 
@@ -20,7 +21,6 @@ function StatusBadge({ status }) {
   );
 }
 
-// CHANGED — begin
 // Read-only row showing whether one input file (germline / somatic / prs) was
 // found on the share. Replaces the old FileField picker.
 function InputStatusField({ label, filename }) {
@@ -40,6 +40,35 @@ function InputStatusField({ label, filename }) {
   );
 }
 
+// CHANGED — begin
+// One output file from a sample's latest completed run. The filename is shown
+// as the tooltip so the user can tell which file they are downloading.
+const OUTPUT_KIND_LABEL = { germline: "Germline", somatic: "Somatic", prs: "PRS" };
+
+function OutputLink({ sid, kind, filename }) {
+  if (!filename) {
+    return (
+      <span
+        className="ra-output-missing"
+        title="Not produced by the latest completed run"
+      >
+        —
+      </span>
+    );
+  }
+  return (
+    <a
+      href={getSampleOutputDownloadUrl(sid, kind)}
+      download={filename}
+      title={filename}
+      className="ra-output-link"
+    >
+      {OUTPUT_KIND_LABEL[kind]}
+    </a>
+  );
+}
+// CHANGED — end
+
 // Maps GET /samples/{sid}/inputs failures to a clear message.
 function inputsErrorMessage(err, sid) {
   if (err?.status === 404) return `Sample ${sid} was not found.`;
@@ -47,7 +76,6 @@ function inputsErrorMessage(err, sid) {
     return "The storage share is not mounted on the server, so input files can't be checked. Ask an admin to check the SMB mount, then try again.";
   return err?.message || "Failed to check input files.";
 }
-// CHANGED — end
 
 // De-duplicates the sample list by sid, keeping only the row with the
 // highest latest_report_id (i.e. the most recent report) for each sample.
@@ -100,11 +128,11 @@ export default function ReportAutomation() {
   // top workflow panel state
   const [selectedSid, setSelectedSid] = useState("");
 
-  // ── input-check state (CHANGED: replaces file / upload / detect state) ──
-  const [inputs, setInputs] = useState(null); // CHANGED — { sid, germline, somatic, prs, ready } | null
-  const [inputsLoading, setInputsLoading] = useState(false); // CHANGED
-  const [inputsError, setInputsError] = useState(null); // CHANGED
-  const inputsReqRef = useRef(0); // CHANGED — discards responses from a superseded selection
+  // ── input-check state ──
+  const [inputs, setInputs] = useState(null); // { sid, germline, somatic, prs, ready } | null
+  const [inputsLoading, setInputsLoading] = useState(false);
+  const [inputsError, setInputsError] = useState(null);
+  const inputsReqRef = useRef(0); // discards responses from a superseded selection
 
   // ── run step state ──
   const [running, setRunning] = useState(false);
@@ -150,8 +178,7 @@ export default function ReportAutomation() {
   // Single stable interval, created once. It refreshes the table only when
   // there's an active job AND we're not already watching that job's
   // progress via pollReportStatus below — that poll refreshes the table
-  // itself once the job finishes. This is what stops the table from
-  // refreshing while the progress bar is running.
+  // itself once the job finishes.
   useEffect(() => {
     const interval = setInterval(() => {
       if (hasActiveJobRef.current && !running) {
@@ -177,7 +204,7 @@ export default function ReportAutomation() {
       if (!reportId) return;
       setActiveReportId(reportId);
       setSelectedSid(sid || "");
-      if (sid) loadInputs(sid); // CHANGED — repopulate the found/not-found panel for the resumed sample
+      if (sid) loadInputs(sid); // repopulate the found/not-found panel for the resumed sample
       setRunning(true);
       setRunStatus("processing");
       setProgress(typeof progress === "number" ? progress : 10);
@@ -190,10 +217,9 @@ export default function ReportAutomation() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // CHANGED: Run Pipeline needs a selected sample, backend-confirmed `ready`, and no running job.
-  const canRun = Boolean(selectedSid) && inputs?.ready === true && !inputsLoading && !running; // CHANGED
+  // Run Pipeline needs a selected sample, backend-confirmed `ready`, and no running job.
+  const canRun = Boolean(selectedSid) && inputs?.ready === true && !inputsLoading && !running;
 
-  // CHANGED — begin
   // Asks the backend which input files exist on the share for this sample.
   // No `running` guard here so the poll/resume paths can use it too.
   const loadInputs = async (sid) => {
@@ -234,7 +260,6 @@ export default function ReportAutomation() {
     if (running) return;
     resetSelection();
   };
-  // CHANGED — end
 
   const stopPolling = () => {
     clearInterval(pollTimerRef.current);
@@ -253,8 +278,7 @@ export default function ReportAutomation() {
 
   // Fully resets all "a job is in flight" state — used whenever we give up
   // watching a job, whether that's a clean terminal status, a manual stop,
-  // or too many failed polls in a row. Centralized so Stop Pipeline and the
-  // poll-failure path can't drift out of sync with each other again.
+  // or too many failed polls in a row.
   const resetActiveJobState = ({ error = null, message = null } = {}) => {
     stopPolling();
     localStorage.removeItem(ACTIVE_JOB_STORAGE_KEY);
@@ -288,7 +312,7 @@ export default function ReportAutomation() {
           setRunning(false);
           setCompletedReportId(reportId); // shows the Download button, stays until next run
           setActiveReportId(null);
-          resetSelection(); // CHANGED (replaces clearing files / detectWarning / upload state / selectedSid)
+          resetSelection();
           await fetchRows();
         } else if (report.status === "failed") {
           resetActiveJobState({
@@ -324,10 +348,8 @@ export default function ReportAutomation() {
         consecutiveFailuresRef.current += 1;
 
         // A one-off network blip is fine — skip this tick and try again.
-        // But if the server is unreachable / the job is gone (deleted row,
-        // backend restarted, etc.), polling forever just leaves the UI
-        // stuck showing "running" with no way to recover. Give up after a
-        // few failed ticks in a row and hand control back to the user.
+        // But if the server is unreachable / the job is gone, give up after
+        // a few failed ticks in a row and hand control back to the user.
         if (consecutiveFailuresRef.current >= MAX_CONSECUTIVE_POLL_FAILURES) {
           resetActiveJobState({
             error:
@@ -368,9 +390,7 @@ export default function ReportAutomation() {
 
   // ── STEP 3: Stop a running/queued pipeline ──
   // Local state is reset unconditionally in `finally`, regardless of whether
-  // the cancel API call itself succeeds. The user clicking Stop should
-  // always immediately stop the UI from showing "running" — if the backend
-  // is unreachable or the job is already gone, there's nothing to wait for.
+  // the cancel API call itself succeeds.
   const handleStopPipeline = async () => {
     if (!activeReportId || cancelling) return;
     setCancelling(true);
@@ -398,12 +418,11 @@ export default function ReportAutomation() {
     <div className="ra-page">
       <div className="ra-header">
         <h1 className="ra-title">Report Automation</h1>
-        <p className="ra-subtitle">Select a sample, check its input files, and run the report pipeline</p>{/* CHANGED */}
+        <p className="ra-subtitle">Select a sample, check its input files, and run the report pipeline</p>
       </div>
 
-      {/* ── Sample selection + Run workflow panel ───────────────────── */}{/* CHANGED */}
+      {/* ── Sample selection + Run workflow panel ───────────────────── */}
       <div className="ra-panel">
-        {/* CHANGED — begin: replaces dropzone, detected-sid / warnings, and the three FileFields */}
         {!selectedSid && (
           <p className="ra-panel-hint">
             Choose a sample with “Use this sample” in the Sample Status table below to check its
@@ -451,7 +470,6 @@ export default function ReportAutomation() {
             )}
           </>
         )}
-        {/* CHANGED — end */}
 
         {/* ── Run step feedback + real progress ── */}
         {runError && (
@@ -498,7 +516,7 @@ export default function ReportAutomation() {
             onClick={handleRunPipeline}
             disabled={!canRun}
             className={`ra-run-btn ${!canRun ? "ra-run-btn-disabled" : ""}`}
-            title={!canRun && !running ? "Select a sample whose input files are all found" : ""} // CHANGED
+            title={!canRun && !running ? "Select a sample whose input files are all found" : ""}
           >
             {running ? "Running..." : "Run Pipeline"}
           </button>
@@ -534,29 +552,36 @@ export default function ReportAutomation() {
               <th>Sample ID</th>
               <th>Patient ID</th>
               <th>Status</th>
+              <th>Germline</th>  {/* CHANGED */}
+              <th>Somatic</th>   {/* CHANGED */}
+              <th>PRS</th>       {/* CHANGED */}
               <th></th>
             </tr>
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={4} className="ra-empty-cell">Loading samples...</td></tr>
+              <tr><td colSpan={7} className="ra-empty-cell">Loading samples...</td></tr>  /* CHANGED: colSpan 4 -> 7 */
             )}
 
             {!loading && filteredRows.length === 0 && (
-              <tr><td colSpan={4} className="ra-empty-cell">No samples found.</td></tr>
+              <tr><td colSpan={7} className="ra-empty-cell">No samples found.</td></tr>  /* CHANGED: colSpan 4 -> 7 */
             )}
 
             {!loading &&
               filteredRows.map((row) => {
                 const status = row.report_status || "Not Generated";
-                const isSelected = row.sid === selectedSid; // CHANGED
+                const isSelected = row.sid === selectedSid;
                 return (
-                  <tr key={row.sid} className={isSelected ? "ra-row-selected" : ""}>{/* CHANGED (className) */}
+                  <tr key={row.sid} className={isSelected ? "ra-row-selected" : ""}>
                     <td className="ra-sample-id">{row.sid}</td>
                     <td className="ra-patient-id">{row.patient_id}</td>
                     <td><StatusBadge status={status} /></td>
+                    {/* CHANGED — begin: output files from the latest completed run */}
+                    <td><OutputLink sid={row.sid} kind="germline" filename={row.germline_output} /></td>
+                    <td><OutputLink sid={row.sid} kind="somatic" filename={row.somatic_output} /></td>
+                    <td><OutputLink sid={row.sid} kind="prs" filename={row.prs_output} /></td>
+                    {/* CHANGED — end */}
                     <td>
-                      {/* CHANGED — begin */}
                       <div className="ra-row-actions">
                         <button
                           type="button"
@@ -567,13 +592,12 @@ export default function ReportAutomation() {
                         >
                           {isSelected ? "Re-check inputs" : "Use this sample"}
                         </button>
-                        {/* CHANGED — end */}
                         {status === "Completed" && row.latest_report_id && (
                           <a href={getReportDownloadUrl(row.latest_report_id)} className="ra-download-link">
                             Download
                           </a>
                         )}
-                      </div>{/* CHANGED */}
+                      </div>
                     </td>
                   </tr>
                 );

@@ -1,11 +1,17 @@
 #!/bin/bash
 set -e
+set -o pipefail  # CHANGED: a Python failure piped into tee now fails the step (tee's exit code was hiding it)
 
-LOG_FILE="pipeline_timing_$(date +%Y%m%d_%H%M%S).log"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"  # CHANGED: moved above log so LOG_FILE can be absolute
+LOG_FILE="$ROOT_DIR/pipeline_timing_$(date +%Y%m%d_%H%M%S).log"  # CHANGED: absolute, so log() works from any cwd
+STEP_NAME="startup"  # CHANGED
 
 log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') | $1" | tee -a "$LOG_FILE"
 }
+
+# CHANGED: any failing command logs which step it was in before the script exits
+trap 'log "FAILED during: ${STEP_NAME} (exit code $?)"' ERR
 
 step_start() {
     STEP_NAME="$1"
@@ -29,8 +35,6 @@ PIPELINE_START=$(date +%s)
 # PATHS
 # ========================================
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 DB_FOLDER="$ROOT_DIR/Database_integrations_With_Filter V1"
 GERMLINE_OUTPUT="$ROOT_DIR/Database_integrations_With_Filter V1/Output/germline"
 SOMATIC_OUTPUT="$ROOT_DIR/Database_integrations_With_Filter V1/Output/somatic"
@@ -44,6 +48,11 @@ REPORT_GERMLINE_INPUT="$ROOT_DIR/Final_Report/input/germline"
 REPORT_SOMATIC_INPUT="$ROOT_DIR/Final_Report/input/somatic"
 REPORT_SNP_INPUT="$ROOT_DIR/Final_Report/input/snp"
 
+# NOTE: this script does not copy outputs into raw/{sid}/outputs/.
+# report_worker.py does that after a successful run, because it knows
+# the sample ID and report ID. The output files must stay where they are
+# until the worker has copied them.
+
 # ========================================
 # STEP 1 - DATABASE INTEGRATION
 # ========================================
@@ -51,8 +60,6 @@ REPORT_SNP_INPUT="$ROOT_DIR/Final_Report/input/snp"
 step_start "STEP 1: DATABASE INTEGRATION (run_all_pipeline.py)"
 
 # Clear last run's output BEFORE generating this run's output.
-# Without this, run_all_pipeline.py's output folder accumulates
-# every previous run's .xlsx files.
 
 mkdir -p "$GERMLINE_OUTPUT" "$SOMATIC_OUTPUT"
 
@@ -61,7 +68,7 @@ rm -f "$SOMATIC_OUTPUT"/*.xlsx
 
 cd "$DB_FOLDER"
 
-python3 run_all_pipeline.py 2>&1 | tee -a "$ROOT_DIR/$LOG_FILE"
+python3 run_all_pipeline.py 2>&1 | tee -a "$LOG_FILE"  # CHANGED: uses absolute LOG_FILE
 
 cd "$ROOT_DIR"
 
@@ -106,9 +113,6 @@ step_end
 
 step_start "STEP 3: PRS PROCESSING (run_prs.py)"
 
-# Check whether PRS input exists and contains files.
-# If there is no PRS input, skip PRS processing.
-
 if [ ! -d "$PRS_INPUT" ]; then
 
     log "PRS input directory not found. Skipping PRS processing."
@@ -131,7 +135,7 @@ else
 
         cd "$PRS_FOLDER"
 
-        python3 run_prs.py 2>&1 | tee -a "$ROOT_DIR/$LOG_FILE"
+        python3 run_prs.py 2>&1 | tee -a "$LOG_FILE"  # CHANGED: uses absolute LOG_FILE
 
         cd "$ROOT_DIR"
 
@@ -156,13 +160,7 @@ step_end
 
 step_start "STEP 4: COPY SNP OUTPUT"
 
-# Always clear old SNP files so stale PRS results
-# are never included in a new report.
-
 rm -f "$REPORT_SNP_INPUT"/*.xlsx
-
-# Only copy SNP output when PRS actually ran
-# and generated output files.
 
 if [ -n "${PRS_COUNT:-}" ] && [ "$PRS_COUNT" -gt 0 ]; then
 
@@ -191,7 +189,7 @@ if [ ! -f "venv/bin/python3" ]; then
     exit 1
 fi
 
-"venv/bin/python3" final_report.py 2>&1 | tee -a "$ROOT_DIR/$LOG_FILE"
+"venv/bin/python3" final_report.py 2>&1 | tee -a "$LOG_FILE"  # CHANGED: uses absolute LOG_FILE
 
 cd "$ROOT_DIR"
 
@@ -216,4 +214,4 @@ echo "Full timing log saved to: $LOG_FILE"
 
 echo "Summary of step durations:"
 
-grep -E "START:|END:" "$LOG_FILE"
+grep -E "START:|END:" "$LOG_FILE" || true  # CHANGED: no match should not fail a successful run

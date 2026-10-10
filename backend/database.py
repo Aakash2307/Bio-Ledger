@@ -4,7 +4,7 @@ from datetime import date
 from pathlib import Path
 import os
 from dotenv import load_dotenv
-load_dotenv(Path(__file__).resolve().parent / ".env") 
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 # DB_CONFIG = {
 #     "host": "127.0.0.1",
@@ -13,7 +13,7 @@ load_dotenv(Path(__file__).resolve().parent / ".env")
 #     # password is changed from "root123" to ""
 #     # created database tzar_bio
 #     "database": "tzar_bio",
-#     "port": 3307, 
+#     "port": 3307,
 #     # port changed from 3307 to 3306
 #     "cursorclass": pymysql.cursors.DictCursor,
 #     "autocommit": False,
@@ -21,8 +21,7 @@ load_dotenv(Path(__file__).resolve().parent / ".env")
 
 
 DB_CONFIG = {
-    "host": os.getenv("DB_HOST", "127.0.0.1"),
-    "host": os.getenv("DB_HOST","DB_IP"),
+    "host": os.getenv("DB_HOST", "127.0.0.1"),  # CHANGED: removed duplicate "host" key that overrode this with "DB_IP" when DB_HOST was unset
     "user": os.getenv("DB_USER"),
     "password": os.getenv("DB_PASSWORD"),
     "database": os.getenv("DB_NAME"),
@@ -180,13 +179,59 @@ def add_report_automation_schema():
 
 
 # =========================================================
+# REPORT AUTOMATION - OUTPUT FILE COLUMNS (additive, safe to rerun)  # CHANGED (section)
+# =========================================================
+# Paths are stored relative to raw/, e.g.
+#   {sid}/outputs/r{report_id}/{sid}_Germline_Results_FINAL.xlsx
+# NULL = that output was not produced by the run (e.g. no PRS input).
+OUTPUT_COLUMNS = {  # CHANGED
+    "germline_output": "VARCHAR(500) NULL",  # CHANGED
+    "somatic_output": "VARCHAR(500) NULL",  # CHANGED
+    "prs_output": "VARCHAR(500) NULL",  # CHANGED
+}  # CHANGED
+
+OUTPUT_KIND_COLUMNS = {  # CHANGED
+    "germline": "germline_output",  # CHANGED
+    "somatic": "somatic_output",  # CHANGED
+    "prs": "prs_output",  # CHANGED
+}  # CHANGED
+
+
+def add_output_columns_to_reports():  # CHANGED
+    """Add germline_output, somatic_output, prs_output to reports if absent.
+    Rerunnable: MySQL has no ADD COLUMN IF NOT EXISTS, so check first."""
+    conn = get_connection()  # CHANGED
+    cursor = conn.cursor()  # CHANGED
+    try:  # CHANGED
+        for column, ddl in OUTPUT_COLUMNS.items():  # CHANGED
+            cursor.execute(  # CHANGED
+                """
+                SELECT COUNT(*) AS n FROM information_schema.columns
+                WHERE table_schema = DATABASE()
+                  AND table_name = 'reports'
+                  AND column_name = %s
+                """,
+                (column,),
+            )  # CHANGED
+            if cursor.fetchone()["n"] == 0:  # CHANGED
+                cursor.execute(f"ALTER TABLE reports ADD COLUMN {column} {ddl}")  # CHANGED
+        conn.commit()  # CHANGED
+    except Exception:  # CHANGED
+        conn.rollback()  # CHANGED
+        raise  # CHANGED
+    finally:  # CHANGED
+        conn.close()  # CHANGED
+
+
+# =========================================================
 # REPORT AUTOMATION - HELPERS
 # =========================================================
 
 def set_sample_input_file(sid: str, file_type: str, file_path: str):
     """Attach an uploaded input file's path to a sample (by sid).
     file_type must be one of: 'germline', 'somatic', 'prs'.
-    If the sample exists but has no sample_records row yet, one is created."""
+    If the sample exists but has no sample_records row yet, one is created.
+    NOTE: no longer called (uploads were removed; inputs are placed on the share)."""
     if file_type not in ("germline", "somatic", "prs"):
         raise ValueError("file_type must be 'germline', 'somatic', or 'prs'")
 
@@ -322,6 +367,76 @@ def update_report_status(report_id: int, status: str, file_path: str = None, err
     conn.commit()
     conn.close()
 
+
+def set_report_outputs(report_id: int, germline_output: str = None,  # CHANGED
+                       somatic_output: str = None, prs_output: str = None):  # CHANGED
+    """Record the run's output paths (relative to raw/) on the reports row.
+    Call this BEFORE update_report_status(..., 'completed'), so a completed
+    row never exists without its outputs. Missing outputs pass None."""
+    conn = get_connection()  # CHANGED
+    cursor = conn.cursor()  # CHANGED
+    try:  # CHANGED
+        cursor.execute(  # CHANGED
+            """
+            UPDATE reports
+            SET germline_output = %s, somatic_output = %s, prs_output = %s
+            WHERE id = %s
+            """,
+            (germline_output, somatic_output, prs_output, report_id),
+        )  # CHANGED
+        conn.commit()  # CHANGED
+    except Exception:  # CHANGED
+        conn.rollback()  # CHANGED
+        raise  # CHANGED
+    finally:  # CHANGED
+        conn.close()  # CHANGED
+
+
+def get_latest_completed_output_path(sid: str, kind: str):  # CHANGED
+    """Relative-to-raw/ path of the given output kind ('germline', 'somatic',
+    'prs') from the sample's latest completed report. None if there is no
+    completed report or that output was not produced."""
+    column = OUTPUT_KIND_COLUMNS.get(kind)  # CHANGED
+    if column is None:  # CHANGED
+        raise ValueError("kind must be 'germline', 'somatic', or 'prs'")  # CHANGED
+    conn = get_connection()  # CHANGED
+    cursor = conn.cursor()  # CHANGED
+    try:  # CHANGED
+        cursor.execute(  # CHANGED
+            f"""
+            SELECT r.{column} AS path
+            FROM reports r
+            JOIN samples s ON r.sample_ref = s.id
+            WHERE s.sid = %s AND r.status = 'completed'
+            ORDER BY r.id DESC
+            LIMIT 1
+            """,
+            (sid,),
+        )  # CHANGED
+        row = cursor.fetchone()  # CHANGED
+        return row["path"] if row else None  # CHANGED
+    finally:  # CHANGED
+        conn.close()  # CHANGED
+
+
+def get_report_file_paths(report_id: int):  # CHANGED
+    """All stored file paths for one report row (for cleanup on delete).
+    Returns None if the report does not exist."""
+    conn = get_connection()  # CHANGED
+    cursor = conn.cursor()  # CHANGED
+    try:  # CHANGED
+        cursor.execute(  # CHANGED
+            """
+            SELECT id, sample_ref, file_path, germline_output, somatic_output, prs_output
+            FROM reports WHERE id = %s
+            """,
+            (report_id,),
+        )  # CHANGED
+        return cursor.fetchone()  # CHANGED
+    finally:  # CHANGED
+        conn.close()  # CHANGED
+
+
 def add_cancel_status_to_reports():
     conn = get_connection()
     cursor = conn.cursor()
@@ -412,7 +527,8 @@ def get_total_reports_generated():
 
 
 def get_report_automation_list():
-    """Full list for the Report Automation page: patient + sample + status."""
+    """Full list for the Report Automation page: patient + sample + status,
+    plus the output filenames from the sample's latest COMPLETED report."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -421,7 +537,10 @@ def get_report_automation_list():
                sr.report_status, sr.report_release_date,
                s.id AS sample_ref,
                r.id AS latest_report_id,
-               r.status AS latest_report_job_status
+               r.status AS latest_report_job_status,
+               SUBSTRING_INDEX(rc.germline_output, '/', -1) AS germline_output,  # CHANGED
+               SUBSTRING_INDEX(rc.somatic_output, '/', -1) AS somatic_output,  # CHANGED
+               SUBSTRING_INDEX(rc.prs_output, '/', -1) AS prs_output  # CHANGED
         FROM patients p
         JOIN samples s ON s.patient_ref = p.id
         LEFT JOIN sample_records sr ON sr.id = (
@@ -430,12 +549,18 @@ def get_report_automation_list():
             ORDER BY report_release_date DESC, id DESC
             LIMIT 1
         )
-        LEFT JOIN reports r ON r.id = (
+        LEFT JOIN reports r ON r.id = (  # CHANGED
             SELECT id FROM reports
             WHERE sample_ref = s.id
-            ORDER BY created_at DESC
+            ORDER BY id DESC  # CHANGED
             LIMIT 1
         )
+        LEFT JOIN reports rc ON rc.id = (  # CHANGED
+            SELECT id FROM reports  # CHANGED
+            WHERE sample_ref = s.id AND status = 'completed'  # CHANGED
+            ORDER BY id DESC  # CHANGED
+            LIMIT 1  # CHANGED
+        )  # CHANGED
         ORDER BY p.created_at DESC
     """)
     rows = cursor.fetchall()
@@ -494,4 +619,5 @@ if __name__ == "__main__":
     add_report_automation_schema()
     add_cancel_status_to_reports()
     add_stage_column_to_reports()
+    add_output_columns_to_reports()  # CHANGED
     print("✅ MySQL database ready.")

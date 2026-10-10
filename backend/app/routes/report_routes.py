@@ -5,6 +5,7 @@ Report Automation routes.
 - trigger report generation
 - list report automation status (for the Report Automation page)
 - download / view a completed report
+- download a sample's germline / somatic / PRS output files
 
 All logic lives in controllers/report_controller.py — this file only
 wires HTTP endpoints to controller calls and shapes the responses.
@@ -16,6 +17,8 @@ from fastapi.responses import FileResponse  # type: ignore
 from app.controllers import report_controller as controller
 
 router = APIRouter(tags=["report-automation"])  # no /api prefix — matches api.js's plain paths
+
+XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"  # CHANGED
 
 
 @router.get("/samples/{sid}/inputs")
@@ -63,6 +66,16 @@ async def view_report(report_id: int):
         media_type="application/pdf",
         headers={"Content-Disposition": f'inline; filename="{pdf_path.name}"'},
     )
+
+
+@router.get("/samples/{sid}/outputs/{kind}/download")  # CHANGED
+async def download_sample_output(sid: str, kind: str):  # CHANGED
+    file_path = await controller.download_sample_output(sid, kind)  # CHANGED
+    return FileResponse(  # CHANGED
+        path=str(file_path),  # CHANGED
+        filename=file_path.name,  # CHANGED
+        media_type=XLSX_MEDIA_TYPE,  # CHANGED
+    )  # CHANGED
 
 
 @router.post("/reports/{report_id}/cancel")

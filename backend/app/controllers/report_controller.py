@@ -21,6 +21,12 @@ from pathlib import Path
 
 from fastapi import HTTPException  # type: ignore
 
+
+from fastapi import HTTPException  # CHANGED
+
+from database import get_latest_completed_output_path  # CHANGED
+from app.services.provisioning import RAW_DIR, storage_ready  # CHANGED
+
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(BACKEND_ROOT))
 
@@ -181,3 +187,30 @@ async def view_report(report_id: int):
         raise HTTPException(status_code=404, detail="Report file missing on disk")
 
     return ensure_pdf(docx_path)
+
+
+
+OUTPUT_KINDS = {"germline", "somatic", "prs"}  # CHANGED
+
+
+async def download_sample_output(sid: str, kind: str) -> Path:  # CHANGED
+    """Path to a sample's germline / somatic / prs output from its latest
+    completed report. Raises 404 when there is no such output, and 503
+    when the share isn't mounted."""
+    if kind not in OUTPUT_KINDS:  # CHANGED
+        raise HTTPException(status_code=404, detail="Unknown output type")  # CHANGED
+
+    if not storage_ready():  # CHANGED
+        raise HTTPException(status_code=503, detail="Storage share is not mounted")  # CHANGED
+
+    rel_path = get_latest_completed_output_path(sid, kind)  # CHANGED
+    if not rel_path:  # CHANGED
+        raise HTTPException(status_code=404, detail="No output for this sample")  # CHANGED
+
+    # Block path traversal: the resolved file must stay inside raw/.
+    root = RAW_DIR.resolve()  # CHANGED
+    full_path = (RAW_DIR / rel_path).resolve()  # CHANGED
+    if not full_path.is_relative_to(root) or not full_path.is_file():  # CHANGED
+        raise HTTPException(status_code=404, detail="Output file not found")  # CHANGED
+
+    return full_path  # CHANGED

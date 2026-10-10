@@ -166,39 +166,21 @@ export async function getReportAutomationList() {
   return data;
 }
 
-// export async function uploadReportInputs(sid, { germlineFile, somaticFile, prsFile }) {
-//   const formData = new FormData();
-//   formData.append("germline_file", germlineFile);
-//   formData.append("somatic_file", somaticFile);
-//   formData.append("prs_file", prsFile);
-
-//   const res = await fetch(`${BASE_URL}/samples/${sid}/upload-inputs`, {
-//     method: "POST",
-//     body: formData,
-//   });
-//   if (!res.ok) {
-//     const err = await res.json().catch(() => ({}));
-//     throw new Error(err.detail || "Failed to upload input files");
-//   }
-//   return res.json();
-// }
-
-export async function uploadReportInputs(sid, { germlineFile, somaticFile, prsFile }) {
-  const formData = new FormData();
-  if (germlineFile) formData.append("germline_file", germlineFile);
-  if (somaticFile) formData.append("somatic_file", somaticFile);
-  if (prsFile) formData.append("prs_file", prsFile);
-
-  const res = await fetch(`${BASE_URL}/samples/${sid}/upload-inputs`, {
-    method: "POST",
-    body: formData,
-  });
+// CHANGED — begin
+// Lists which input files (germline / somatic / prs) exist on the SMB share for a sample.
+// Resolves to { sid, germline, somatic, prs, ready } where each file is a filename or null.
+// Rejects with an Error carrying `.status` (404 = sample not found, 503 = share not mounted).
+export async function getSampleInputs(sid) {
+  const res = await fetch(`${BASE_URL}/samples/${encodeURIComponent(sid)}/inputs`);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Failed to upload input files");
+    const error = new Error(err.detail || "Failed to check input files");
+    error.status = res.status;
+    throw error;
   }
   return res.json();
 }
+// CHANGED — end
 
 export async function generateReport(sid) {
   const res = await fetch(`${BASE_URL}/reports/generate/${sid}`, {

@@ -1,33 +1,73 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   Responsive sizing tokens (CHANGED)
+   Every size below reads from these variables. The breakpoints at the bottom
+   of the file only re-define the tokens, so small phones and very large
+   monitors are handled in one place without touching the rules.
+   ────────────────────────────────────────────────────────────────────────── */
+
 .ra-page {
-  padding: 32px;
+  --ra-pad: 32px;
+  --ra-max: 1600px;
+  --ra-fs-title: 24px;
+  --ra-fs-list-title: 16px;
+  --ra-fs-body: 14px;
+  --ra-fs-sm: 13px;
+  --ra-fs-xs: 12px;
+  --ra-fs-th: 11px;
+  --ra-fs-icon: 20px;
+  --ra-radius: 12px;
+  --ra-radius-sm: 8px;
+  --ra-radius-xs: 6px;
+  --ra-panel-pad: 24px;
+  --ra-gap: 16px;
+  --ra-cell-y: 12px;
+  --ra-cell-x: 24px;
+  --ra-btn-y: 10px;
+  --ra-btn-x: 24px;
+  --ra-track-h: 14px;
+  --ra-search-max: 340px;
+  --ra-badge-y: 4px;
+  --ra-badge-x: 10px;
+
+  box-sizing: border-box; /* CHANGED */
+  width: 100%; /* CHANGED */
+  max-width: var(--ra-max); /* CHANGED */
+  margin: 0 auto; /* CHANGED — centers the page on very wide screens */
+  padding: var(--ra-pad); /* CHANGED */
+}
+
+.ra-page *,
+.ra-page *::before,
+.ra-page *::after {
+  box-sizing: border-box; /* CHANGED */
 }
 
 .ra-header {
-  margin-bottom: 24px;
+  margin-bottom: calc(var(--ra-pad) * 0.75);
 }
 
 .ra-title {
-  font-size: 24px;
+  font-size: var(--ra-fs-title);
   font-weight: 700;
   color: #0f172a;
   margin: 0;
 }
 
 .ra-subtitle {
-  font-size: 14px;
+  font-size: var(--ra-fs-body);
   color: #64748b;
   margin: 4px 0 0 0;
 }
 
-/* ── Upload + Run panel ─────────────────────────────────────── */
+/* ── Sample selection + Run panel ───────────────────────────── */
 
 .ra-panel {
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  border-radius: var(--ra-radius);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  padding: 24px;
-  margin-bottom: 32px;
+  padding: var(--ra-panel-pad);
+  margin-bottom: var(--ra-pad);
 }
 
 .ra-panel-row {
@@ -41,9 +81,9 @@
 .ra-sid-input {
   width: 100%;
   padding: 10px 14px;
-  font-size: 14px;
+  font-size: var(--ra-fs-body);
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  border-radius: var(--ra-radius-sm);
   outline: none;
 }
 
@@ -54,25 +94,20 @@
 
 .ra-panel-files {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr)); /* CHANGED — minmax(0) lets long filenames ellipsize instead of overflowing */
+  gap: var(--ra-gap);
   margin-bottom: 8px;
-}
-
-@media (max-width: 900px) {
-  .ra-panel-files {
-    grid-template-columns: 1fr;
-  }
 }
 
 .ra-field {
   display: block;
+  min-width: 0; /* CHANGED */
 }
 
 .ra-field-label {
   display: block;
   margin-bottom: 4px;
-  font-size: 14px;
+  font-size: var(--ra-fs-body);
   font-weight: 500;
   color: #334155;
 }
@@ -85,66 +120,128 @@
 
 .ra-field-filename {
   flex: 1;
+  min-width: 0; /* CHANGED */
   padding: 8px 12px;
-  font-size: 13px;
+  font-size: var(--ra-fs-sm);
   color: #64748b;
   border: 1px solid #e2e8f0;
-  border-radius: 6px;
+  border-radius: var(--ra-radius-xs);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.ra-browse-btn {
-  cursor: pointer;
-  padding: 8px 12px;
-  font-size: 13px;
+/* CHANGED — input found / not found on the share (must stay after .ra-field-filename) */
+.ra-input-found {
+  color: #047857;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.ra-input-missing {
+  color: #b91c1c;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+/* CHANGED — hint shown before any sample is selected */
+.ra-panel-hint {
+  margin: 0;
+  font-size: var(--ra-fs-body);
+  color: #64748b;
+}
+
+/* CHANGED — "Selected Sample ID" row with the Clear selection button */
+.ra-selected-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.ra-selected-header .ra-detected-sid {
+  margin: 0;
+}
+
+.ra-clear-btn {
+  padding: 6px 12px;
+  font-size: var(--ra-fs-sm);
   font-weight: 500;
   color: #334155;
   background: #f1f5f9;
-  border-radius: 6px;
-  white-space: nowrap;
+  border: none;
+  border-radius: var(--ra-radius-xs);
+  cursor: pointer;
 }
-.ra-browse-btn:hover {
+.ra-clear-btn:hover:not(:disabled) {
   background: #e2e8f0;
 }
-
-.ra-file-input {
-  display: none;
+.ra-clear-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .ra-panel-error {
-  margin-top: 16px;
+  margin-top: var(--ra-gap);
   padding: 8px 12px;
-  font-size: 14px;
+  font-size: var(--ra-fs-body);
   color: #b91c1c;
   background: #fef2f2;
-  border-radius: 6px;
+  border-radius: var(--ra-radius-xs);
 }
 
 .ra-panel-message {
-  margin-top: 16px;
+  margin-top: var(--ra-gap);
   padding: 8px 12px;
-  font-size: 14px;
+  font-size: var(--ra-fs-body);
   color: #1d4ed8;
   background: #eff6ff;
-  border-radius: 6px;
+  border-radius: var(--ra-radius-xs);
+}
+
+/* CHANGED — was used by the JSX but never defined */
+.ra-panel-warning {
+  margin-top: var(--ra-gap);
+  padding: 8px 12px;
+  font-size: var(--ra-fs-body);
+  color: #92400e;
+  background: #fffbeb;
+  border-radius: var(--ra-radius-xs);
+}
+
+/* CHANGED — "Reset" link inside the pipeline error message (was missing) */
+.ra-reset-link {
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: #b91c1c;
+  background: none;
+  border: none;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.ra-reset-link:hover {
+  color: #991b1b;
 }
 
 .ra-panel-actions {
   margin-top: 20px;
   display: flex;
+  flex-wrap: wrap; /* CHANGED */
   justify-content: flex-end;
+  gap: 12px; /* CHANGED — replaces the stop button's margin-left */
 }
 
 .ra-run-btn {
-  padding: 10px 24px;
-  font-size: 14px;
+  padding: var(--ra-btn-y) var(--ra-btn-x);
+  font-size: var(--ra-fs-body);
   font-weight: 600;
   color: #ffffff;
   background: linear-gradient(135deg, #2563eb, #4f46e5);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--ra-radius-sm);
   cursor: pointer;
 }
 .ra-run-btn:hover {
@@ -171,10 +268,19 @@
 
 .ra-stop-btn {
   background: linear-gradient(135deg, #dc2626, #b91c1c);
-  margin-left: 12px;
+  /* CHANGED — margin-left removed; spacing now comes from .ra-panel-actions gap */
 }
 .ra-stop-btn:hover {
   background: linear-gradient(135deg, #b91c1c, #991b1b);
+}
+
+/* CHANGED — keyboard focus for the buttons */
+.ra-run-btn:focus-visible,
+.ra-use-btn:focus-visible,
+.ra-clear-btn:focus-visible,
+.ra-reset-link:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 2px;
 }
 
 /* ── Status list ─────────────────────────────────────────────── */
@@ -189,7 +295,7 @@
 }
 
 .ra-list-title {
-  font-size: 16px;
+  font-size: var(--ra-fs-list-title);
   font-weight: 600;
   color: #0f172a;
   margin: 0;
@@ -197,11 +303,11 @@
 
 .ra-search-input {
   width: 100%;
-  max-width: 340px;
+  max-width: var(--ra-search-max);
   padding: 8px 14px;
-  font-size: 14px;
+  font-size: var(--ra-fs-body);
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  border-radius: var(--ra-radius-sm);
   outline: none;
 }
 
@@ -213,18 +319,17 @@
 .ra-table-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  border-radius: var(--ra-radius);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  overflow: hidden;
+  overflow-x: auto; /* CHANGED — table scrolls sideways on narrow screens */
+  overflow-y: hidden;
 }
 
 .ra-table {
   width: 100%;
   border-collapse: collapse;
   text-align: left;
-  font-size: 14px;
-  gap: 10px;
-  
+  font-size: var(--ra-fs-body);
 }
 
 .ra-table thead {
@@ -233,8 +338,8 @@
 }
 
 .ra-table th {
-  padding: 12px 24px;
-  font-size: 11px;
+  padding: var(--ra-cell-y) var(--ra-cell-x);
+  font-size: var(--ra-fs-th);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -242,12 +347,18 @@
 }
 
 .ra-table td {
-  padding: 12px 24px;
+  padding: var(--ra-cell-y) var(--ra-cell-x);
   border-top: 1px solid #f1f5f9;
 }
 
 .ra-table tbody tr:hover {
   background: #f8fafc;
+}
+
+/* CHANGED — row of the sample currently chosen with "Use this sample" */
+.ra-table tbody tr.ra-row-selected,
+.ra-table tbody tr.ra-row-selected:hover {
+  background: #eff6ff;
 }
 
 .ra-empty-cell {
@@ -270,14 +381,52 @@
   color: #64748b;
 }
 
+/* CHANGED — holds "Use this sample" and the Download link in the last column */
+.ra-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ra-use-btn {
+  padding: 6px 12px;
+  font-size: var(--ra-fs-xs);
+  font-weight: 500;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: var(--ra-radius-xs);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ra-use-btn:hover:not(:disabled) {
+  background: #dbeafe;
+}
+.ra-use-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ra-use-btn-active {
+  color: #ffffff;
+  background: #2563eb;
+  border-color: #2563eb;
+}
+.ra-use-btn-active:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
 .ra-download-link {
   padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 12px;
+  border-radius: var(--ra-radius-xs);
+  font-size: var(--ra-fs-xs);
   font-weight: 500;
   color: #ffffff;
   background: #059669;
   text-decoration: none;
+  white-space: nowrap; /* CHANGED */
 }
 .ra-download-link:hover {
   background: #047857;
@@ -288,10 +437,11 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
+  padding: var(--ra-badge-y) var(--ra-badge-x);
   border-radius: 9999px;
-  font-size: 12px;
+  font-size: var(--ra-fs-xs);
   font-weight: 500;
+  white-space: nowrap; /* CHANGED */
 }
 
 .ra-badge-dot {
@@ -327,7 +477,7 @@
 }
 
 .ra-detected-sid {
-  font-size: 0.9rem;
+  font-size: var(--ra-fs-body);
   color: #444;
   margin: 4px 0 8px;
 }
@@ -342,7 +492,7 @@
 .ra-progress-track {
   position: relative;
   flex: 1;
-  height: 14px;
+  height: var(--ra-track-h);
   background: #eee;
   border-radius: 999px;
   overflow: visible; /* let the icon sit centered on the track without being clipped */
@@ -359,15 +509,168 @@
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%);
-  font-size: 20px;
+  font-size: var(--ra-fs-icon);
   transition: left 0.35s ease;
   line-height: 1;
 }
 
 .ra-progress-percent {
-  font-size: 0.85rem;
+  font-size: var(--ra-fs-body);
   font-weight: 600;
   color: #333;
   min-width: 34px;
   text-align: right;
+  white-space: nowrap; /* CHANGED */
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Responsive breakpoints (CHANGED) — tokens only
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Tablets and below: file status cards stack */
+@media (max-width: 900px) {
+  .ra-panel-files {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Phones */
+@media (max-width: 640px) {
+  .ra-page {
+    --ra-pad: 16px;
+    --ra-panel-pad: 16px;
+    --ra-cell-x: 14px;
+    --ra-cell-y: 10px;
+    --ra-btn-x: 18px;
+    --ra-fs-title: 20px;
+    --ra-radius: 10px;
+  }
+
+  .ra-table {
+    min-width: 540px; /* scrolls inside .ra-table-card instead of squashing */
+  }
+
+  .ra-search-input {
+    max-width: none;
+  }
+
+  .ra-panel-actions {
+    justify-content: stretch;
+  }
+
+  .ra-panel-actions .ra-run-btn {
+    flex: 1 1 100%;
+  }
+}
+
+/* Full HD+ monitors (~1.15x) */
+@media (min-width: 1920px) {
+  .ra-page {
+    --ra-pad: 36px;
+    --ra-max: 1840px;
+    --ra-fs-title: 28px;
+    --ra-fs-list-title: 18px;
+    --ra-fs-body: 16px;
+    --ra-fs-sm: 15px;
+    --ra-fs-xs: 14px;
+    --ra-fs-th: 13px;
+    --ra-fs-icon: 23px;
+    --ra-radius: 14px;
+    --ra-radius-sm: 9px;
+    --ra-radius-xs: 7px;
+    --ra-panel-pad: 28px;
+    --ra-gap: 18px;
+    --ra-cell-y: 14px;
+    --ra-cell-x: 28px;
+    --ra-btn-y: 12px;
+    --ra-btn-x: 28px;
+    --ra-track-h: 16px;
+    --ra-search-max: 390px;
+    --ra-badge-y: 5px;
+    --ra-badge-x: 12px;
+  }
+}
+
+/* QHD / 2560-wide (~1.4x) */
+@media (min-width: 2560px) {
+  .ra-page {
+    --ra-pad: 44px;
+    --ra-max: 2200px;
+    --ra-fs-title: 34px;
+    --ra-fs-list-title: 22px;
+    --ra-fs-body: 20px;
+    --ra-fs-sm: 18px;
+    --ra-fs-xs: 17px;
+    --ra-fs-th: 15px;
+    --ra-fs-icon: 28px;
+    --ra-radius: 17px;
+    --ra-radius-sm: 11px;
+    --ra-radius-xs: 8px;
+    --ra-panel-pad: 34px;
+    --ra-gap: 22px;
+    --ra-cell-y: 17px;
+    --ra-cell-x: 34px;
+    --ra-btn-y: 14px;
+    --ra-btn-x: 34px;
+    --ra-track-h: 20px;
+    --ra-search-max: 480px;
+    --ra-badge-y: 6px;
+    --ra-badge-x: 14px;
+  }
+}
+
+/* Ultrawide 3440 (~1.6x) */
+@media (min-width: 3440px) {
+  .ra-page {
+    --ra-pad: 52px;
+    --ra-max: 2600px;
+    --ra-fs-title: 38px;
+    --ra-fs-list-title: 26px;
+    --ra-fs-body: 22px;
+    --ra-fs-sm: 21px;
+    --ra-fs-xs: 19px;
+    --ra-fs-th: 18px;
+    --ra-fs-icon: 32px;
+    --ra-radius: 19px;
+    --ra-radius-sm: 13px;
+    --ra-radius-xs: 10px;
+    --ra-panel-pad: 38px;
+    --ra-gap: 26px;
+    --ra-cell-y: 19px;
+    --ra-cell-x: 38px;
+    --ra-btn-y: 16px;
+    --ra-btn-x: 38px;
+    --ra-track-h: 22px;
+    --ra-search-max: 540px;
+    --ra-badge-y: 6px;
+    --ra-badge-x: 16px;
+  }
+}
+
+/* 4K and above (~1.9x) */
+@media (min-width: 3840px) {
+  .ra-page {
+    --ra-pad: 60px;
+    --ra-max: 3200px;
+    --ra-fs-title: 46px;
+    --ra-fs-list-title: 30px;
+    --ra-fs-body: 27px;
+    --ra-fs-sm: 25px;
+    --ra-fs-xs: 23px;
+    --ra-fs-th: 21px;
+    --ra-fs-icon: 38px;
+    --ra-radius: 23px;
+    --ra-radius-sm: 15px;
+    --ra-radius-xs: 11px;
+    --ra-panel-pad: 46px;
+    --ra-gap: 30px;
+    --ra-cell-y: 23px;
+    --ra-cell-x: 46px;
+    --ra-btn-y: 19px;
+    --ra-btn-x: 46px;
+    --ra-track-h: 27px;
+    --ra-search-max: 650px;
+    --ra-badge-y: 8px;
+    --ra-badge-x: 19px;
+  }
 }

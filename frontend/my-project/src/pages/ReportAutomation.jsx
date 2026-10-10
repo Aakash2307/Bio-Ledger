@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
   getReportAutomationList,
-  uploadReportInputs,
+  getSampleInputs, // CHANGED (replaces uploadReportInputs)
   generateReport,
   getReportStatus,
   cancelReport,
@@ -20,45 +20,34 @@ function StatusBadge({ status }) {
   );
 }
 
-function FileField({ label, file, onChange, onFileSelected }) {
+// CHANGED — begin
+// Read-only row showing whether one input file (germline / somatic / prs) was
+// found on the share. Replaces the old FileField picker.
+function InputStatusField({ label, filename }) {
+  const found = Boolean(filename);
   return (
-    <label className="ra-field">
+    <div className="ra-field">
       <span className="ra-field-label">{label}</span>
       <div className="ra-field-row">
-        <span className="ra-field-filename">{file ? file.name : "No file selected"}</span>
-        <label className="ra-browse-btn">
-          Browse
-          <input
-            type="file"
-            accept=".xlsx,.xls"
-            className="ra-file-input"
-            onChange={(e) => {
-              const f = e.target.files[0] || null;
-              onChange(f);
-              if (f) onFileSelected(f); // also run sid/type detection, same as dropzone
-              e.target.value = ""; // allow re-selecting the same file later
-            }}
-          />
-        </label>
+        <span
+          className={`ra-field-filename ${found ? "ra-input-found" : "ra-input-missing"}`}
+          title={found ? filename : ""}
+        >
+          {found ? filename : "not found"}
+        </span>
       </div>
-    </label>
+    </div>
   );
 }
 
-// Detects sample ID + file type from a filename like:
-// "4A0580_Somatic_Results.xlsx" -> { sid: "4A0580", type: "somatic" }
-// "4A0580_Germline_Results.xlsx" -> { sid: "4A0580", type: "germline" }
-function detectFileInfo(filename) {
-  const name = filename.toLowerCase();
-  const sid = filename.split("_")[0] || null;
-
-  let type = null;
-  if (name.includes("germline")) type = "germline";
-  else if (name.includes("somatic")) type = "somatic";
-  else if (name.includes("merged") || name.includes("prs")) type = "prs";
-
-  return { sid, type };
+// Maps GET /samples/{sid}/inputs failures to a clear message.
+function inputsErrorMessage(err, sid) {
+  if (err?.status === 404) return `Sample ${sid} was not found.`;
+  if (err?.status === 503)
+    return "The storage share is not mounted on the server, so input files can't be checked. Ask an admin to check the SMB mount, then try again.";
+  return err?.message || "Failed to check input files.";
 }
+// CHANGED — end
 
 // De-duplicates the sample list by sid, keeping only the row with the
 // highest latest_report_id (i.e. the most recent report) for each sample.
@@ -110,17 +99,12 @@ export default function ReportAutomation() {
 
   // top workflow panel state
   const [selectedSid, setSelectedSid] = useState("");
-  const [germlineFile, setGermlineFile] = useState(null);
-  const [somaticFile, setSomaticFile] = useState(null);
-  const [prsFile, setPrsFile] = useState(null);
-  const [dragOver, setDragOver] = useState(false);
-  const [detectWarning, setDetectWarning] = useState(null);
 
-  // ── upload step state ──
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState(null);
-  const [uploadMessage, setUploadMessage] = useState(null);
-  const [uploaded, setUploaded] = useState(false); // gates the Run Pipeline button
+  // ── input-check state (CHANGED: replaces file / upload / detect state) ──
+  const [inputs, setInputs] = useState(null); // CHANGED — { sid, germline, somatic, prs, ready } | null
+  const [inputsLoading, setInputsLoading] = useState(false); // CHANGED
+  const [inputsError, setInputsError] = useState(null); // CHANGED
+  const inputsReqRef = useRef(0); // CHANGED — discards responses from a superseded selection
 
   // ── run step state ──
   const [running, setRunning] = useState(false);
@@ -193,6 +177,7 @@ export default function ReportAutomation() {
       if (!reportId) return;
       setActiveReportId(reportId);
       setSelectedSid(sid || "");
+      if (sid) loadInputs(sid); // CHANGED — repopulate the found/not-found panel for the resumed sample
       setRunning(true);
       setRunStatus("processing");
       setProgress(typeof progress === "number" ? progress : 10);
@@ -205,93 +190,51 @@ export default function ReportAutomation() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const anyFileSelected = Boolean(germlineFile || somaticFile || prsFile);
-  const canUpload = selectedSid.trim() && anyFileSelected && !uploading;
-  const canRun = uploaded && !running;
+  // CHANGED: Run Pipeline needs a selected sample, backend-confirmed `ready`, and no running job.
+  const canRun = Boolean(selectedSid) && inputs?.ready === true && !inputsLoading && !running; // CHANGED
 
-  const handleFilesDetected = (fileList) => {
-    const files = Array.from(fileList);
-    setDetectWarning(null);
-    setUploaded(false);
-    setUploadMessage(null);
-    setUploadError(null);
-
-    const detectedSids = new Set();
-    const unmatched = [];
-    let newGermline = germlineFile;
-    let newSomatic = somaticFile;
-    let newPrs = prsFile;
-
-    files.forEach((file) => {
-      const { sid, type } = detectFileInfo(file.name);
-      if (sid) detectedSids.add(sid);
-
-      if (type === "germline") newGermline = file;
-      else if (type === "somatic") newSomatic = file;
-      else if (type === "prs") newPrs = file;
-      else unmatched.push(file.name);
-    });
-
-    setGermlineFile(newGermline);
-    setSomaticFile(newSomatic);
-    setPrsFile(newPrs);
-
-    if (detectedSids.size === 1) {
-      setSelectedSid([...detectedSids][0]);
-    } else if (detectedSids.size > 1) {
-      setDetectWarning(
-        `Files appear to belong to different samples (${[...detectedSids].join(", ")}). Please check before running.`
-      );
-    }
-
-    if (unmatched.length > 0) {
-      setDetectWarning(
-        (prev) =>
-          `${prev ? prev + " " : ""}Could not detect type for: ${unmatched.join(", ")}. Assign manually below.`
-      );
-    }
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setDragOver(false);
-    if (e.dataTransfer.files?.length) {
-      handleFilesDetected(e.dataTransfer.files);
-    }
-  };
-
-  const handleBrowseMultiple = (e) => {
-    if (e.target.files?.length) {
-      handleFilesDetected(e.target.files);
-    }
-    e.target.value = "";
-  };
-
-  // ── STEP 1: Upload only ──
-  const handleUpload = async () => {
-    if (!canUpload) return;
-    setUploading(true);
-    setUploadError(null);
-    setUploadMessage(null);
-    setUploaded(false);
-
+  // CHANGED — begin
+  // Asks the backend which input files exist on the share for this sample.
+  // No `running` guard here so the poll/resume paths can use it too.
+  const loadInputs = async (sid) => {
+    const reqId = ++inputsReqRef.current;
+    setInputs(null);
+    setInputsError(null);
+    setInputsLoading(true);
     try {
-      const result = await uploadReportInputs(selectedSid.trim(), {
-        germlineFile,
-        somaticFile,
-        prsFile,
-      });
-      console.log("Upload response:", result);
-      setUploadMessage(`Files uploaded for ${selectedSid.trim()}.`);
-      setUploaded(true);
+      const data = await getSampleInputs(sid);
+      if (reqId !== inputsReqRef.current) return; // selection changed while waiting
+      setInputs(data);
     } catch (err) {
-      console.error("Upload failed:", err);
-      setUploadError(err.message || "Failed to upload input files.");
-      setUploaded(false);
+      if (reqId !== inputsReqRef.current) return;
+      console.error("Failed to check sample inputs:", err);
+      setInputsError(inputsErrorMessage(err, sid));
     } finally {
-      setUploading(false);
+      if (reqId === inputsReqRef.current) setInputsLoading(false);
     }
   };
+
+  // Unguarded reset — used by the poll-complete path, whose closure can hold a stale `running`.
+  const resetSelection = () => {
+    inputsReqRef.current += 1; // invalidate any in-flight inputs request
+    setSelectedSid("");
+    setInputs(null);
+    setInputsError(null);
+    setInputsLoading(false);
+  };
+
+  // ── STEP 1: pick a sample (also re-checks inputs if it's already selected) ──
+  const handleUseSample = (sid) => {
+    if (running) return; // can't switch samples mid-run
+    setSelectedSid(sid);
+    loadInputs(sid);
+  };
+
+  const handleClearSelection = () => {
+    if (running) return;
+    resetSelection();
+  };
+  // CHANGED — end
 
   const stopPolling = () => {
     clearInterval(pollTimerRef.current);
@@ -345,13 +288,7 @@ export default function ReportAutomation() {
           setRunning(false);
           setCompletedReportId(reportId); // shows the Download button, stays until next run
           setActiveReportId(null);
-          setGermlineFile(null);
-          setSomaticFile(null);
-          setPrsFile(null);
-          setSelectedSid("");
-          setDetectWarning(null);
-          setUploaded(false);
-          setUploadMessage(null);
+          resetSelection(); // CHANGED (replaces clearing files / detectWarning / upload state / selectedSid)
           await fetchRows();
         } else if (report.status === "failed") {
           resetActiveJobState({
@@ -461,85 +398,60 @@ export default function ReportAutomation() {
     <div className="ra-page">
       <div className="ra-header">
         <h1 className="ra-title">Report Automation</h1>
-        <p className="ra-subtitle">Upload input files and run the report pipeline for a sample</p>
+        <p className="ra-subtitle">Select a sample, check its input files, and run the report pipeline</p>{/* CHANGED */}
       </div>
 
-      {/* ── Upload + Run workflow panel ─────────────────────────────── */}
+      {/* ── Sample selection + Run workflow panel ───────────────────── */}{/* CHANGED */}
       <div className="ra-panel">
-        <div
-          className={`ra-dropzone ${dragOver ? "ra-dropzone-active" : ""}`}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragOver(true);
-          }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={handleDrop}
-        >
-          <p className="ra-dropzone-text">
-            Drag &amp; drop the germline, somatic, and/or PRS files here — sample ID and file
-            type are detected automatically from the filenames.
+        {/* CHANGED — begin: replaces dropzone, detected-sid / warnings, and the three FileFields */}
+        {!selectedSid && (
+          <p className="ra-panel-hint">
+            Choose a sample with “Use this sample” in the Sample Status table below to check its
+            input files.
           </p>
-          <label className="ra-dropzone-btn">
-            Or browse files
-            <input
-              type="file"
-              accept=".xlsx,.xls"
-              multiple
-              className="ra-file-input"
-              onChange={handleBrowseMultiple}
-            />
-          </label>
-        </div>
-
-        {detectWarning && <p className="ra-panel-warning">{detectWarning}</p>}
+        )}
 
         {selectedSid && (
-          <div className="ra-detected-sid">
-            Detected Sample ID: <strong>{selectedSid}</strong>
-          </div>
+          <>
+            <div className="ra-selected-header">
+              <div className="ra-detected-sid">
+                Selected Sample ID: <strong>{selectedSid}</strong>
+              </div>
+              <button
+                type="button"
+                className="ra-clear-btn"
+                onClick={handleClearSelection}
+                disabled={running}
+                title={running ? "Can't change the selection while a pipeline is running" : ""}
+              >
+                Clear selection
+              </button>
+            </div>
+
+            {inputsLoading && (
+              <p className="ra-panel-message">Checking input files on the share...</p>
+            )}
+
+            {inputsError && <p className="ra-panel-error">{inputsError}</p>}
+
+            {inputs && (
+              <>
+                <div className="ra-panel-files">
+                  <InputStatusField label="Germline" filename={inputs.germline} />
+                  <InputStatusField label="Somatic" filename={inputs.somatic} />
+                  <InputStatusField label="PRS" filename={inputs.prs} />
+                </div>
+                {!inputs.ready && (
+                  <p className="ra-panel-warning">
+                    Not ready to run. Place the missing file(s) under raw/{selectedSid}/ on the
+                    share, then click “Re-check inputs” on this sample's row.
+                  </p>
+                )}
+              </>
+            )}
+          </>
         )}
-
-        {!selectedSid && anyFileSelected && (
-          <p className="ra-panel-warning">
-            Couldn't detect a Sample ID from the selected file name(s). Expected format:
-            SID_Type_...xlsx (e.g. 4A0580_Somatic_Results.xlsx).
-          </p>
-        )}
-
-        <div className="ra-panel-files">
-          <FileField
-            label="Germline file (.xlsx)"
-            file={germlineFile}
-            onChange={setGermlineFile}
-            onFileSelected={(f) => handleFilesDetected([f])}
-          />
-          <FileField
-            label="Somatic file (.xlsx)"
-            file={somaticFile}
-            onChange={setSomaticFile}
-            onFileSelected={(f) => handleFilesDetected([f])}
-          />
-          <FileField
-            label="PRS file (.xlsx)"
-            file={prsFile}
-            onChange={setPrsFile}
-            onFileSelected={(f) => handleFilesDetected([f])}
-          />
-        </div>
-
-        {/* ── Upload step feedback ── */}
-        {uploadError && <p className="ra-panel-error">Upload error: {uploadError}</p>}
-        {uploadMessage && !uploadError && <p className="ra-panel-message">{uploadMessage}</p>}
-
-        <div className="ra-panel-actions">
-          <button
-            onClick={handleUpload}
-            disabled={!canUpload}
-            className={`ra-run-btn ${!canUpload ? "ra-run-btn-disabled" : ""}`}
-          >
-            {uploading ? "Uploading..." : "Upload Files"}
-          </button>
-        </div>
+        {/* CHANGED — end */}
 
         {/* ── Run step feedback + real progress ── */}
         {runError && (
@@ -586,7 +498,7 @@ export default function ReportAutomation() {
             onClick={handleRunPipeline}
             disabled={!canRun}
             className={`ra-run-btn ${!canRun ? "ra-run-btn-disabled" : ""}`}
-            title={!uploaded ? "Upload files first" : ""}
+            title={!canRun && !running ? "Select a sample whose input files are all found" : ""} // CHANGED
           >
             {running ? "Running..." : "Run Pipeline"}
           </button>
@@ -637,17 +549,31 @@ export default function ReportAutomation() {
             {!loading &&
               filteredRows.map((row) => {
                 const status = row.report_status || "Not Generated";
+                const isSelected = row.sid === selectedSid; // CHANGED
                 return (
-                  <tr key={row.sid}>
+                  <tr key={row.sid} className={isSelected ? "ra-row-selected" : ""}>{/* CHANGED (className) */}
                     <td className="ra-sample-id">{row.sid}</td>
                     <td className="ra-patient-id">{row.patient_id}</td>
                     <td><StatusBadge status={status} /></td>
                     <td>
-                      {status === "Completed" && row.latest_report_id && (
-                        <a href={getReportDownloadUrl(row.latest_report_id)} className="ra-download-link">
-                          Download
-                        </a>
-                      )}
+                      {/* CHANGED — begin */}
+                      <div className="ra-row-actions">
+                        <button
+                          type="button"
+                          className={`ra-use-btn ${isSelected ? "ra-use-btn-active" : ""}`}
+                          onClick={() => handleUseSample(row.sid)}
+                          disabled={running}
+                          title={running ? "Unavailable while a pipeline is running" : ""}
+                        >
+                          {isSelected ? "Re-check inputs" : "Use this sample"}
+                        </button>
+                        {/* CHANGED — end */}
+                        {status === "Completed" && row.latest_report_id && (
+                          <a href={getReportDownloadUrl(row.latest_report_id)} className="ra-download-link">
+                            Download
+                          </a>
+                        )}
+                      </div>{/* CHANGED */}
                     </td>
                   </tr>
                 );

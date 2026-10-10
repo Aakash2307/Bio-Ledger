@@ -5,6 +5,7 @@ Holds all business logic for report automation:
 - finding a sample's input files on the share
 - converting docx -> pdf (cached)
 - enqueueing report generation jobs
+- deleting reports and their files
 - reading report / sample state from the database
 
 Routes should only call into these functions and translate the
@@ -15,17 +16,12 @@ raw/{sid}/germline|somatic|prs on the share (folders are created by
 provisioning.py).
 """
 
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 from fastapi import HTTPException  # type: ignore
-
-
-from fastapi import HTTPException  # CHANGED
-
-from database import get_latest_completed_output_path  # CHANGED
-from app.services.provisioning import RAW_DIR, storage_ready  # CHANGED
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(BACKEND_ROOT))
@@ -36,14 +32,21 @@ from database import (  # noqa: E402
     get_report_automation_list,
     get_report_stats,
     get_completed_reports_list,
+    get_latest_completed_output_path,
+    get_report_file_paths,
+    delete_report_row,
+    sync_sample_report_status_after_delete,
+    has_active_report,
 )
+from app.services.provisioning import RAW_DIR, OUTPUTS_SUBDIR, storage_ready  # noqa: E402
 from app.services.report_worker import enqueue_report_job, request_cancel  # noqa: E402
 from app.services.input_resolver import resolve_input, resolve_report  # noqa: E402
-from app.services.provisioning import storage_ready  # noqa: E402
 
 # PDFs are disposable (regenerated from the docx), so the cache stays on local disk
 REPORT_PDF_CACHE = BACKEND_ROOT / "report_pdf_cache"
 REPORT_PDF_CACHE.mkdir(parents=True, exist_ok=True)
+
+OUTPUT_KINDS = {"germline", "somatic", "prs"}
 
 
 def ensure_pdf(docx_path: Path) -> Path:
@@ -99,6 +102,14 @@ async def generate_report(sid: str):
         raise HTTPException(status_code=404, detail="Sample not found")
     if not storage_ready():
         raise HTTPException(status_code=503, detail="Storage share is not available")
+
+    # One active job per sample: a duplicate would overwrite the same staged
+    # inputs and outputs.
+    if has_active_report(sample["sample_id"]):
+        raise HTTPException(
+            status_code=409,
+            detail=f"{sid} already has a job queued or running",
+        )
 
     # DB paths are only *expected* locations, so check the files really exist
     # (falls back to the newest .xlsx in raw/{sid}/{kind}/)
@@ -189,28 +200,75 @@ async def view_report(report_id: int):
     return ensure_pdf(docx_path)
 
 
-
-OUTPUT_KINDS = {"germline", "somatic", "prs"}  # CHANGED
-
-
-async def download_sample_output(sid: str, kind: str) -> Path:  # CHANGED
+async def download_sample_output(sid: str, kind: str) -> Path:
     """Path to a sample's germline / somatic / prs output from its latest
     completed report. Raises 404 when there is no such output, and 503
     when the share isn't mounted."""
-    if kind not in OUTPUT_KINDS:  # CHANGED
-        raise HTTPException(status_code=404, detail="Unknown output type")  # CHANGED
+    if kind not in OUTPUT_KINDS:
+        raise HTTPException(status_code=404, detail="Unknown output type")
 
-    if not storage_ready():  # CHANGED
-        raise HTTPException(status_code=503, detail="Storage share is not mounted")  # CHANGED
+    if not storage_ready():
+        raise HTTPException(status_code=503, detail="Storage share is not mounted")
 
-    rel_path = get_latest_completed_output_path(sid, kind)  # CHANGED
-    if not rel_path:  # CHANGED
-        raise HTTPException(status_code=404, detail="No output for this sample")  # CHANGED
+    rel_path = get_latest_completed_output_path(sid, kind)
+    if not rel_path:
+        raise HTTPException(status_code=404, detail="No output for this sample")
 
     # Block path traversal: the resolved file must stay inside raw/.
-    root = RAW_DIR.resolve()  # CHANGED
-    full_path = (RAW_DIR / rel_path).resolve()  # CHANGED
-    if not full_path.is_relative_to(root) or not full_path.is_file():  # CHANGED
-        raise HTTPException(status_code=404, detail="Output file not found")  # CHANGED
+    root = RAW_DIR.resolve()
+    full_path = (RAW_DIR / rel_path).resolve()
+    if not full_path.is_relative_to(root) or not full_path.is_file():
+        raise HTTPException(status_code=404, detail="Output file not found")
 
-    return full_path  # CHANGED
+    return full_path
+
+
+# ─── Delete ───────────────────────────────────────────────────────────────────
+
+def _remove_file_under(path: Path, root: Path) -> None:
+    """Delete one file, but only if it really sits inside raw/."""
+    resolved = path.resolve()
+    if not resolved.is_relative_to(root):
+        raise HTTPException(status_code=500, detail="Refusing to delete a file outside raw/")
+    try:
+        resolved.unlink(missing_ok=True)
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"Could not delete {resolved.name}: {e}")
+
+
+async def delete_report(report_id: int):
+    """Delete one report: its archived file, its run folder (outputs and
+    pipeline.log), and its row. Files go first, so if a removal fails the row
+    stays and the user can retry."""
+    report = get_report_file_paths(report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    if report["status"] in ("queued", "processing"):
+        raise HTTPException(
+            status_code=400,
+            detail="This report is queued or running. Stop it before deleting.",
+        )
+    if not storage_ready():
+        raise HTTPException(
+            status_code=503,
+            detail="Storage share is not mounted, so the files can't be removed",
+        )
+
+    root = RAW_DIR.resolve()
+
+    # 1. archived report file
+    if report.get("file_path"):
+        _remove_file_under(resolve_report(report["file_path"]), root)
+
+    # 2. run folder: outputs and pipeline.log
+    run_dir = (RAW_DIR / report["sid"] / OUTPUTS_SUBDIR / f"r{report_id}").resolve()
+    if run_dir.is_relative_to(root) and run_dir.exists():
+        try:
+            shutil.rmtree(run_dir)
+        except OSError as e:
+            raise HTTPException(status_code=500, detail=f"Could not delete run folder: {e}")
+
+    # 3. row, then keep the sample's status in step
+    delete_report_row(report_id)
+    sync_sample_report_status_after_delete(report["sample_ref"])
+    return {"status": "deleted", "report_id": report_id}

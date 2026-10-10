@@ -1,16 +1,21 @@
 #!/bin/bash
 set -e
-set -o pipefail  # CHANGED: a Python failure piped into tee now fails the step (tee's exit code was hiding it)
+set -o pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"  # CHANGED: moved above log so LOG_FILE can be absolute
-LOG_FILE="$ROOT_DIR/pipeline_timing_$(date +%Y%m%d_%H%M%S).log"  # CHANGED: absolute, so log() works from any cwd
-STEP_NAME="startup"  # CHANGED
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# CHANGED: the worker sets PIPELINE_LOG_FILE to the run folder's pipeline.log.
+# Run by hand with the variable unset, it falls back to a timestamped file here.
+LOG_FILE="${PIPELINE_LOG_FILE:-$ROOT_DIR/pipeline_timing_$(date +%Y%m%d_%H%M%S).log}"  # CHANGED
+mkdir -p "$(dirname "$LOG_FILE")"  # CHANGED
+
+STEP_NAME="startup"
 
 log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') | $1" | tee -a "$LOG_FILE"
 }
 
-# CHANGED: any failing command logs which step it was in before the script exits
+# Any failing command logs which step it was in before the script exits.
 trap 'log "FAILED during: ${STEP_NAME} (exit code $?)"' ERR
 
 step_start() {
@@ -50,8 +55,7 @@ REPORT_SNP_INPUT="$ROOT_DIR/Final_Report/input/snp"
 
 # NOTE: this script does not copy outputs into raw/{sid}/outputs/.
 # report_worker.py does that after a successful run, because it knows
-# the sample ID and report ID. The output files must stay where they are
-# until the worker has copied them.
+# the sample ID and report ID.
 
 # ========================================
 # STEP 1 - DATABASE INTEGRATION
@@ -68,7 +72,7 @@ rm -f "$SOMATIC_OUTPUT"/*.xlsx
 
 cd "$DB_FOLDER"
 
-python3 run_all_pipeline.py 2>&1 | tee -a "$LOG_FILE"  # CHANGED: uses absolute LOG_FILE
+python3 run_all_pipeline.py 2>&1 | tee -a "$LOG_FILE"  # CHANGED: uses LOG_FILE
 
 cd "$ROOT_DIR"
 
@@ -135,7 +139,7 @@ else
 
         cd "$PRS_FOLDER"
 
-        python3 run_prs.py 2>&1 | tee -a "$LOG_FILE"  # CHANGED: uses absolute LOG_FILE
+        python3 run_prs.py 2>&1 | tee -a "$LOG_FILE"  # CHANGED: uses LOG_FILE
 
         cd "$ROOT_DIR"
 
@@ -189,7 +193,7 @@ if [ ! -f "venv/bin/python3" ]; then
     exit 1
 fi
 
-"venv/bin/python3" final_report.py 2>&1 | tee -a "$LOG_FILE"  # CHANGED: uses absolute LOG_FILE
+"venv/bin/python3" final_report.py 2>&1 | tee -a "$LOG_FILE"  # CHANGED: uses LOG_FILE
 
 cd "$ROOT_DIR"
 
@@ -214,4 +218,4 @@ echo "Full timing log saved to: $LOG_FILE"
 
 echo "Summary of step durations:"
 
-grep -E "START:|END:" "$LOG_FILE" || true  # CHANGED: no match should not fail a successful run
+grep -E "START:|END:" "$LOG_FILE" || true

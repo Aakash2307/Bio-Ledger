@@ -50,6 +50,10 @@ async def completed_reports():
 async def report_status(report_id: int):
     return await controller.report_status(report_id)
 
+@router.delete("/reports/{report_id}")  # CHANGED
+async def delete_report(report_id: int):  # CHANGED
+    return await controller.delete_report(report_id)  # CHANGED
+
 
 @router.get("/reports/{report_id}/download")
 async def download_report(report_id: int):

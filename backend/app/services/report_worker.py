@@ -19,6 +19,10 @@ somatic and PRS outputs into raw/{sid}/outputs/r{report_id}/ under their
 exact names, and records the paths on the reports row. Missing outputs are
 stored as NULL and do not fail the report.
 
+Logs: each run's pipeline output is written to raw/{sid}/outputs/r{report_id}/pipeline.log
+by master_pipeline.sh (the path comes in through PIPELINE_LOG_FILE). The log is kept
+even when the run fails or is cancelled.
+
 Stage tracking: master_pipeline.sh logs "START: STEP N: ..." lines for each
 of its 5 stages. A background thread reads stdout as the pipeline runs and
 writes a live `stage` onto the reports row. This also keeps the OS pipe
@@ -41,9 +45,9 @@ from typing import Optional
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(BACKEND_ROOT))  # so `import database` works
 
-from database import create_report_record, update_report_status, set_report_outputs, get_report  # noqa: E402  # CHANGED
+from database import create_report_record, update_report_status, set_report_outputs, get_report  # noqa: E402
 from app.services.input_resolver import sample_reports_dir, report_rel  # noqa: E402
-from app.services.provisioning import RAW_DIR, OUTPUTS_SUBDIR, run_output_dir  # noqa: E402  # CHANGED
+from app.services.provisioning import RAW_DIR, OUTPUTS_SUBDIR, run_output_dir  # noqa: E402
 
 # =========================================================
 # PATHS - adjust ONLY if you rename/move the pipeline folder
@@ -53,34 +57,35 @@ PIPELINE_ROOT = BACKEND_ROOT / "Report Automation"
 DB_FOLDER = PIPELINE_ROOT / "Database_integrations_With_Filter V1"
 GERMLINE_INPUT_FOLDER = DB_FOLDER / "Input" / "germline"
 SOMATIC_INPUT_FOLDER = DB_FOLDER / "Input" / "somatic"
-PRS_INPUT_FOLDER = PIPELINE_ROOT / "PRS" / "input"  # CHANGED: lowercase to match master_pipeline.sh (Linux is case-sensitive)
+PRS_INPUT_FOLDER = PIPELINE_ROOT / "PRS" / "input"
 SOMATIC_CLEAN_OUTPUT = DB_FOLDER / "Input" / "somatic_clean"
 
 FINAL_REPORT_OUTPUT = PIPELINE_ROOT / "Final_Report" / "output"
 MASTER_SCRIPT = PIPELINE_ROOT / "master_pipeline.sh"
 
-# CHANGED: where each pipeline output is written, and the exact name the worker looks for
+# Where each pipeline output is written, and the exact name the worker looks for
 GERMLINE_OUTPUT_FOLDER = DB_FOLDER / "Output" / "germline"
 SOMATIC_OUTPUT_FOLDER = DB_FOLDER / "Output" / "somatic"
 PRS_OUTPUT_FOLDER = PIPELINE_ROOT / "PRS" / "output"
 
-OUTPUT_FOLDERS = {  # CHANGED
+OUTPUT_FOLDERS = {
     "germline": GERMLINE_OUTPUT_FOLDER,
     "somatic": SOMATIC_OUTPUT_FOLDER,
     "prs": PRS_OUTPUT_FOLDER,
 }
 
-OUTPUT_NAME_TEMPLATES = {  # CHANGED
+OUTPUT_NAME_TEMPLATES = {
     "germline": "{sid}_Germline_Results_FINAL.xlsx",
     "somatic": "{sid}_Somatic_Results_Integrated_Somamut.xlsx",
     "prs": "{sid}_trait_processed.xlsx",
 }
 
-PIPELINE_TIMEOUT_SECONDS = 3600  # adjust to real worst-case runtime + buffer
-POLL_INTERVAL_SECONDS = 1        # how often we check the subprocess + cancel flag
-TERMINATE_GRACE_SECONDS = 5      # time to allow graceful shutdown before SIGKILL
-READER_JOIN_TIMEOUT_SECONDS = 10 # how long to wait for the stdout reader thread to drain after exit
-MTIME_TOLERANCE_SECONDS = 2      # clock/filesystem slack when deciding a file belongs to this run  # CHANGED
+PIPELINE_TIMEOUT_SECONDS = 3600
+POLL_INTERVAL_SECONDS = 1
+TERMINATE_GRACE_SECONDS = 5
+READER_JOIN_TIMEOUT_SECONDS = 10
+MTIME_TOLERANCE_SECONDS = 2
+LOG_FILE_NAME = "pipeline.log"  # CHANGED
 
 # =========================================================
 # STAGE PARSING
@@ -136,7 +141,7 @@ _current_process: Optional[subprocess.Popen] = None
 _cancelled_report_ids: set = set()
 
 
-def _signal_group(proc: subprocess.Popen, sig: int) -> None:  # CHANGED
+def _signal_group(proc: subprocess.Popen, sig: int) -> None:
     """Send a signal to the pipeline's whole process group (bash plus every
     python child it started). Needs start_new_session=True at launch."""
     try:
@@ -145,13 +150,13 @@ def _signal_group(proc: subprocess.Popen, sig: int) -> None:  # CHANGED
         pass  # already gone
 
 
-def _stop_process(proc: subprocess.Popen) -> None:  # CHANGED
+def _stop_process(proc: subprocess.Popen) -> None:
     """Ask the group to stop, wait for the grace period, then force kill."""
     _signal_group(proc, signal.SIGTERM)
     try:
         proc.wait(timeout=TERMINATE_GRACE_SECONDS)
     except subprocess.TimeoutExpired:
-        _signal_group(proc, signal.SIGKILL)  # CHANGED
+        _signal_group(proc, signal.SIGKILL)
         proc.wait()
 
 
@@ -169,7 +174,7 @@ def request_cancel(report_id: int) -> str:
 
     if result == "killed":
         try:
-            _stop_process(proc)  # CHANGED
+            _stop_process(proc)
         except Exception:
             pass  # process may have already exited on its own
 
@@ -220,21 +225,25 @@ def enqueue_report_job(
 
 
 # =========================================================
-# OUTPUT HANDLING  # CHANGED (whole section)
+# OUTPUT HANDLING
 # =========================================================
-def _run_dir_path(sid: str, report_id: int) -> Path:  # CHANGED
-    """raw/{sid}/outputs/r{report_id}/ without creating it (used for cleanup)."""
+def _run_dir_path(sid: str, report_id: int) -> Path:
+    """raw/{sid}/outputs/r{report_id}/ without creating it."""
     return RAW_DIR / sid / OUTPUTS_SUBDIR / f"r{report_id}"
 
 
-def _written_by_run(path: Path, run_started_at: float) -> bool:  # CHANGED
-    """True only if the file exists and was written during this run.
-    Stops stale outputs from an earlier sample or run being copied."""
+def _run_log_path(sid: str, report_id: int) -> Path:  # CHANGED
+    """pipeline.log inside this run's folder."""
+    return _run_dir_path(sid, report_id) / LOG_FILE_NAME  # CHANGED
+
+
+def _written_by_run(path: Path, run_started_at: float) -> bool:
+    """True only if the file exists and was written during this run."""
     return path.is_file() and path.stat().st_mtime >= run_started_at - MTIME_TOLERANCE_SECONDS
 
 
 def _collect_outputs(sid: str, report_id: int, run_started_at: float,
-                     prs_path: Optional[str]) -> dict:  # CHANGED
+                     prs_path: Optional[str]) -> dict:
     """Copy this run's three outputs into raw/{sid}/outputs/r{report_id}/.
     Returns {kind: path relative to raw/, or None}. A missing output is
     None, not an error. Raises only on a real copy failure."""
@@ -253,18 +262,15 @@ def _collect_outputs(sid: str, report_id: int, run_started_at: float,
         shutil.copy2(src, dest)
         collected[kind] = report_rel(dest)
 
-    if not any(collected.values()):
-        try:
-            run_dir.rmdir()  # remove the empty run folder
-        except OSError:
-            pass
-
     return collected
 
 
 def _cleanup_partial(sid: str, report_id: int, archived_path: Optional[Path]) -> None:  # CHANGED
-    """Remove anything a failed save left behind, so no half-saved report remains."""
-    shutil.rmtree(_run_dir_path(sid, report_id), ignore_errors=True)
+    """Remove only the output files and archived report a failed save left
+    behind. pipeline.log stays, so the failed run can still be inspected."""
+    run_dir = _run_dir_path(sid, report_id)
+    for f in run_dir.glob("*.xlsx"):
+        f.unlink(missing_ok=True)
     if archived_path is not None and archived_path.exists():
         try:
             archived_path.unlink()
@@ -295,9 +301,6 @@ def _process_job(job: tuple):
         _reset_folder(PRS_INPUT_FOLDER)
         _reset_folder(SOMATIC_CLEAN_OUTPUT)
 
-        # Inputs are staged under normalized {sid}_... names, because the
-        # pipeline takes the sample ID from the first "_" token. The originals
-        # on the share are never touched.
         if germline_path:
             shutil.copy(germline_path, GERMLINE_INPUT_FOLDER / f"{sid}_Germline_Results.xlsx")
         if somatic_path:
@@ -313,8 +316,17 @@ def _process_job(job: tuple):
         update_report_status(report_id, status="cancelled", error_log="Cancelled before pipeline started")
         return
 
+    # ── Prepare the run folder (holds pipeline.log, even if the run fails) ──
+    try:
+        run_dir = run_output_dir(sid, report_id)  # CHANGED
+    except Exception as e:  # CHANGED
+        update_report_status(report_id, status="failed", error_log=f"Could not prepare run folder: {e}")  # CHANGED
+        return  # CHANGED
+
+    run_env = {**os.environ, "PIPELINE_LOG_FILE": str(run_dir / LOG_FILE_NAME)}  # CHANGED
+
     # ── Launch pipeline ──
-    run_started_at = time.time()  # CHANGED: every file this run produces is newer than this
+    run_started_at = time.time()
 
     try:
         proc = subprocess.Popen(
@@ -324,7 +336,8 @@ def _process_job(job: tuple):
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
-            start_new_session=True,  # CHANGED: own process group, so cancel kills the python children too
+            start_new_session=True,
+            env=run_env,  # CHANGED
         )
     except Exception as e:
         update_report_status(report_id, status="failed", error_log=f"Failed to launch pipeline: {e}")
@@ -350,14 +363,14 @@ def _process_job(job: tuple):
                 break
 
             if _is_cancelled(report_id):
-                _stop_process(proc)  # CHANGED: stops the whole group
+                _stop_process(proc)
                 _clear_cancelled(report_id)
                 reader_thread.join(timeout=READER_JOIN_TIMEOUT_SECONDS)
                 update_report_status(report_id, status="cancelled", error_log="Cancelled by user")
                 return
 
             if time.monotonic() - start_time > PIPELINE_TIMEOUT_SECONDS:
-                _signal_group(proc, signal.SIGKILL)  # CHANGED: kill the group, not just bash
+                _signal_group(proc, signal.SIGKILL)
                 proc.wait()
                 timed_out = True
                 break
@@ -380,8 +393,7 @@ def _process_job(job: tuple):
         update_report_status(report_id, status="failed", error_log=error_tail)
         return
 
-    # CHANGED: only report files written by THIS run. Without this, an old
-    # report would be archived as the new one when this run produced none.
+    # Only report files written by THIS run.
     output_files = [
         p for p in list(FINAL_REPORT_OUTPUT.glob("*.docx")) + list(FINAL_REPORT_OUTPUT.glob("*.pdf"))
         if _written_by_run(p, run_started_at)
@@ -390,9 +402,9 @@ def _process_job(job: tuple):
         update_report_status(report_id, status="failed", error_log="Pipeline finished but no output file was found")
         return
 
-    source_file = max(output_files, key=lambda p: p.stat().st_mtime)  # most recently written
+    source_file = max(output_files, key=lambda p: p.stat().st_mtime)
 
-    # CHANGED: save outputs, archive the report, and record everything.
+    # Save outputs, archive the report, and record everything.
     # Any failure here removes what was written, so no half-saved report is left.
     archived_path: Optional[Path] = None
     try:
@@ -410,7 +422,6 @@ def _process_job(job: tuple):
         update_report_status(report_id, status="failed", error_log=f"Failed to save results: {e}")
         return
 
-    # CHANGED: store the report path relative to raw/ (resolve_report() turns it back)
     update_report_status(report_id, status="completed", file_path=report_rel(archived_path), stage="Complete")
 
 

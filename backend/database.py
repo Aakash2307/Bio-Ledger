@@ -298,14 +298,24 @@ def create_report_record(sample_ref: int):
     """Insert a new job-log row into reports, status='queued'."""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO reports (sample_ref, status) VALUES (%s, 'queued')",
-        (sample_ref,)
-    )
-    report_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
-    return report_id
+    try:
+        cursor.execute(
+            "INSERT INTO reports (sample_ref, status) VALUES (%s, 'queued')",
+            (sample_ref,)
+        )
+        report_id = cursor.lastrowid
+        # CHANGED: mirror "Queued" so the Sample Status table shows waiting jobs
+        cursor.execute(
+            "UPDATE sample_records SET report_status='Queued' WHERE sample_ref=%s",
+            (sample_ref,)
+        )
+        conn.commit()
+        return report_id
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def update_report_status(report_id: int, status: str, file_path: str = None, error_log: str = None, stage: str = None):
@@ -420,21 +430,37 @@ def get_latest_completed_output_path(sid: str, kind: str):  # CHANGED
 
 
 def get_report_file_paths(report_id: int):  # CHANGED
-    """All stored file paths for one report row (for cleanup on delete).
-    Returns None if the report does not exist."""
-    conn = get_connection()  # CHANGED
-    cursor = conn.cursor()  # CHANGED
-    try:  # CHANGED
-        cursor.execute(  # CHANGED
+    """Fields needed to delete a report: status, archived path, sample ID."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
             """
-            SELECT id, sample_ref, file_path, germline_output, somatic_output, prs_output
-            FROM reports WHERE id = %s
+            SELECT r.id, r.sample_ref, r.status, r.file_path, s.sid
+            FROM reports r
+            JOIN samples s ON s.id = r.sample_ref
+            WHERE r.id = %s
             """,
             (report_id,),
-        )  # CHANGED
-        return cursor.fetchone()  # CHANGED
-    finally:  # CHANGED
-        conn.close()  # CHANGED
+        )
+        return cursor.fetchone()
+    finally:
+        conn.close()
+
+
+
+def has_active_report(sample_ref: int) -> bool:  # CHANGED
+    """True if this sample already has a queued or processing job."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT COUNT(*) AS n FROM reports WHERE sample_ref = %s AND status IN ('queued', 'processing')",
+            (sample_ref,),
+        )
+        return cursor.fetchone()["n"] > 0
+    finally:
+        conn.close()
 
 
 def add_cancel_status_to_reports():

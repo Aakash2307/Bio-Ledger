@@ -188,3 +188,15 @@
 2026-10-08 07:07:59,927Z | user='ip:127.0.0.1' sid='4A0030' action=bam status=206 method=GET range='bytes=0-63999'
 2026-10-08 07:08:01,259Z | user='ip:127.0.0.1' sid='4A0030' action=bam status=206 method=GET range='bytes=2273289858-2273289883'
 2026-10-08 07:08:01,878Z | user='ip:127.0.0.1' sid='4A0030' action=bam status=206 method=GET range='bytes=2272420165-2273306879'
+2026-10-10 07:56:10,199Z | user='ip:127.0.0.1' sid='4A0030' action=session status=200 
+2026-10-10 07:56:32,900Z | user='ip:127.0.0.1' sid='4A0030' action=session status=200 
+2026-10-10 08:09:02,202Z | user='ip:127.0.0.1' sid='4A0030' action=session status=200 
+2026-10-10 08:09:23,580Z | user='ip:127.0.0.1' sid='4A0030' action=bai status=200 method=GET range=None
+2026-10-10 08:09:24,905Z | user='ip:127.0.0.1' sid='4A0030' action=bam status=206 method=GET range='bytes=0-63999'
+2026-10-10 08:09:25,447Z | user='ip:127.0.0.1' sid='4A0030' action=bam status=206 method=GET range='bytes=2893057538-2893057563'
+2026-10-10 08:09:25,771Z | user='ip:127.0.0.1' sid='4A0030' action=bam status=206 method=GET range='bytes=2893024947-2893072554'
+2026-10-10 08:09:48,874Z | user='ip:127.0.0.1' sid='4A0030' action=session status=200 
+2026-10-10 08:09:50,920Z | user='ip:127.0.0.1' sid='4A0030' action=bai status=200 method=GET range=None
+2026-10-10 08:09:51,813Z | user='ip:127.0.0.1' sid='4A0030' action=bam status=206 method=GET range='bytes=0-63999'
+2026-10-10 08:09:52,265Z | user='ip:127.0.0.1' sid='4A0030' action=bam status=206 method=GET range='bytes=2893057538-2893057563'
+2026-10-10 08:09:52,634Z | user='ip:127.0.0.1' sid='4A0030' action=bam status=206 method=GET range='bytes=2893024947-2893072554'

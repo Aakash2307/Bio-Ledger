@@ -21,7 +21,7 @@ load_dotenv(Path(__file__).resolve().parent / ".env")
 
 
 DB_CONFIG = {
-
+    "host": os.getenv("DB_HOST", "127.0.0.1"),
     "host": os.getenv("DB_HOST","DB_IP"),
     "user": os.getenv("DB_USER"),
     "password": os.getenv("DB_PASSWORD"),
@@ -29,9 +29,7 @@ DB_CONFIG = {
     "port": int(os.getenv("DB_PORT", "3306")),
     "cursorclass": pymysql.cursors.DictCursor,
     "autocommit": False,
-
 }
-
 def get_connection():
     conn = pymysql.connect(**DB_CONFIG)
     return conn

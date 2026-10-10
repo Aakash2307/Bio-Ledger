@@ -7,16 +7,24 @@ from app.services.provisioning import start_provisioning   # NEW
 from app.routes import variant_routes
 from app.routes import gene_panel_routes
 from app.routes import bam_routes   # NEW: igv.js session + BAM/BAI range serving
+import os 
+
+from dotenv import load_dotenv
+load_dotenv()
 
 app = FastAPI(title="Backend for Bioledger")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        os.getenv("IP_ADDRESS"),  # from .env
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["Content-Range", "Accept-Ranges", "Content-Length"],  # NEW: needed by igv.js
+    expose_headers=["Content-Range", "Accept-Ranges", "Content-Length"],
 )
 
 # Initialize DB tables on startup

@@ -66,6 +66,23 @@ function makeStoreSetter(key) {
   };
 }
 
+// Created once, at module scope, so their identity is stable across renders.
+// They only touch variantStore, which is also module-level, so they never
+// need to appear in a hook dependency array.
+const setAnalysisTab = makeStoreSetter("analysisTab");
+const setSampleId = makeStoreSetter("sampleId");
+const setSummary = makeStoreSetter("summary");
+const setRows = makeStoreSetter("rows");
+const setTotal = makeStoreSetter("total");
+const setPage = makeStoreSetter("page");
+const setSortBy = makeStoreSetter("sortBy");
+const setSortDir = makeStoreSetter("sortDir");
+const setClassFilter = makeStoreSetter("classFilter");
+const setGeneCategoryFilter = makeStoreSetter("geneCategoryFilter");
+const setPanelFilter = makeStoreSetter("panelFilter");
+const setSearch = makeStoreSetter("search");
+const setSelected = makeStoreSetter("selected");
+
 const API_BASE = "/api/variants";
 const SAMPLE_API = "/api/sample-files";
 const PAGE_SIZE = 100;
@@ -77,19 +94,6 @@ export default function VariantVisualization() {
     analysisTab, sampleId, summary, rows, total, page, sortBy, sortDir,
     classFilter, geneCategoryFilter, panelFilter, search, selected,
   } = persisted;
-  const setAnalysisTab = makeStoreSetter("analysisTab");
-  const setSampleId = makeStoreSetter("sampleId");
-  const setSummary = makeStoreSetter("summary");
-  const setRows = makeStoreSetter("rows");
-  const setTotal = makeStoreSetter("total");
-  const setPage = makeStoreSetter("page");
-  const setSortBy = makeStoreSetter("sortBy");
-  const setSortDir = makeStoreSetter("sortDir");
-  const setClassFilter = makeStoreSetter("classFilter");
-  const setGeneCategoryFilter = makeStoreSetter("geneCategoryFilter");
-  const setPanelFilter = makeStoreSetter("panelFilter");
-  const setSearch = makeStoreSetter("search");
-  const setSelected = makeStoreSetter("selected");
 
   // Transient, per-mount UI flags — intentionally NOT persisted, so a stale
   // "loading"/"uploading" state can't survive across an unmount.

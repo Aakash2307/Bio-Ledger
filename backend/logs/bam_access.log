@@ -214,3 +214,12 @@
 2026-10-12 10:25:16,544Z | user='ip:127.0.0.1' sid='4A0030' action=bam status=206 method=GET range='bytes=0-63999'
 2026-10-12 10:25:19,580Z | user='ip:127.0.0.1' sid='4A0030' action=bam status=206 method=GET range='bytes=3507002887-3507002912'
 2026-10-12 10:25:20,734Z | user='ip:127.0.0.1' sid='4A0030' action=bam status=206 method=GET range='bytes=3506732792-3507017801'
+2026-10-13 07:47:08,851Z | user='ip:127.0.0.1' sid='4A0030' action=session status=200 
+2026-10-13 07:47:18,491Z | user='ip:127.0.0.1' sid='4A0030' action=bai status=200 method=GET range=None
+2026-10-13 07:47:21,632Z | user='ip:127.0.0.1' sid='4A0030' action=bam status=206 method=GET range='bytes=0-63999'
+2026-10-13 07:47:22,918Z | user='ip:127.0.0.1' sid='4A0030' action=bam status=206 method=GET range='bytes=2273289858-2273289883'
+2026-10-13 07:47:24,183Z | user='ip:127.0.0.1' sid='4A0030' action=bam status=206 method=GET range='bytes=2272420165-2273306879'
+2026-10-13 07:48:01,239Z | user='ip:127.0.0.1' sid='4A0030' action=bam status=206 method=GET range='bytes=1947022194-1947022219'
+2026-10-13 07:48:02,479Z | user='ip:127.0.0.1' sid='4A0030' action=bam status=206 method=GET range='bytes=1946716258-1947036928'
+2026-10-13 09:46:23,942Z | user='ip:127.0.0.1' sid='4A0030' action=bam status=206 method=GET range='bytes=5099065681-5099065706'
+2026-10-13 09:46:24,319Z | user='ip:127.0.0.1' sid='4A0030' action=bam status=206 method=GET range='bytes=5098566716-5099081359'

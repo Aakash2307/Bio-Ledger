@@ -307,7 +307,7 @@ export default function OrganCaseBreakdownChart({ summary = null, period = "all"
 }
 
 // ── Horizontal bar chart (default left panel) ─────────────────────────────────
-function BarChart({ organList, maxTotal, totalSamples, selectedOrgan, onSingleClick, onDoubleClick }) {
+function BarChart({ organList, maxTotal, selectedOrgan, onSingleClick, onDoubleClick }) {
   return (
     <div style={{
       display: "flex", flexDirection: "column", gap: 7,

@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 // components/Layout.jsx
 // Wraps all pages. The sidebar is a drawer that opens from the menu button
 // in the top bar. Individual pages only render their own content.

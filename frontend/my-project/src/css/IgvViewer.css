@@ -53,6 +53,13 @@
   border-bottom: 1px solid var(--gv-border); font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--gv-muted); }
 .gv-caption b { color: var(--gv-text); font-weight: 600; letter-spacing: 0; text-transform: none; font-size: 12px; }
 .gv-caption .gv-chip { font-size: 10.5px; padding: 0 6px; }
+.gv-vcf-pick { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+.gv-vcf-pick select { height: 24px; padding: 0 6px; border: 1px solid var(--gv-border); border-radius: 6px;
+  background: var(--gv-panel); color: var(--gv-text); font: 600 12px Inter, system-ui, sans-serif;
+  letter-spacing: 0; text-transform: none; cursor: pointer; }
+.gv-vcf-pick select:disabled { opacity: .5; cursor: not-allowed; }
+.gv-vcf-pick select:focus-visible { outline: 2px solid var(--gv-primary); outline-offset: 1px; }
+.gv-vcf-err { color: var(--gv-err); font-weight: 600; letter-spacing: 0; text-transform: none; font-size: 11.5px; }
 .gv-stage { position: relative; background: var(--gv-panel); min-height: 440px; }
 .gv--max .gv-stage { flex: 1; min-height: 0; }
 .gv-igv { min-height: 440px; }
@@ -62,6 +69,11 @@
 .gv-marker i { position: absolute; top: 0; bottom: 0; left: 50%; width: 1.5px; margin-left: -.75px; background: var(--gv-primary); }
 .gv-marker span { position: absolute; top: 2px; left: 50%; transform: translateX(-50%); padding: 1px 6px; border-radius: 3px;
   background: var(--gv-primary); color: #fff; font: 700 9px Inter, system-ui, sans-serif; letter-spacing: .07em; }
+
+/* igv.js click popup (read / coverage / VCF details), desktop-IGV style */
+.gv-pop { font: 12px/1.5 Inter, system-ui, sans-serif; color: var(--gv-text, #0F172A);
+  min-width: 280px; max-width: 520px; max-height: 420px; overflow: auto; white-space: nowrap; }
+.gv-pop hr { margin: 6px 0; border: 0; border-top: 1px solid #94A3B8; }
 
 /* status bar */
 .gv-status { display: flex; align-items: center; gap: 6px 16px; flex-wrap: wrap; padding: 5px 12px; background: var(--gv-panel);

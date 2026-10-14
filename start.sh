@@ -50,7 +50,7 @@ echo "========================================"
 echo "        Starting Backend"
 echo "========================================"
 
-env -u GTK_PATH -u GTK_MODULES -u GIO_EXTRA_MODULES gnome-terminal -- bash -c "
+env -i HOME="$HOME" USER="$USER" DISPLAY="$DISPLAY" WAYLAND_DISPLAY="$WAYLAND_DISPLAY" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" gnome-terminal -- bash -c "
     cd '$BACKEND_DIR'
 
     echo 'Starting backend...'
@@ -82,9 +82,9 @@ echo "========================================"
 echo "        Starting Frontend"
 echo "========================================"
 
-env -u GTK_PATH -u GTK_MODULES -u GIO_EXTRA_MODULES gnome-terminal -- bash -c "
+env -i HOME="$HOME" USER="$USER" DISPLAY="$DISPLAY" WAYLAND_DISPLAY="$WAYLAND_DISPLAY" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" gnome-terminal -- bash -c "
     cd '$FRONTEND_DIR'
-
+    export PATH="/home/vedantjoshi/.nvm/versions/node/v24.20.0/bin:$PATH"
     echo 'Starting frontend...'
     echo ''
 

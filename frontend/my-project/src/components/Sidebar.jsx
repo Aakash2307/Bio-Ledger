@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 // components/Sidebar.jsx
 // Slide-in drawer. Hidden by default; Layout controls open/close.
 // Props:

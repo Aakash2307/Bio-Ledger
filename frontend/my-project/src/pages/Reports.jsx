@@ -143,7 +143,7 @@ export default function Reports() {
       <div className="rp-search-row">
         <input
           type="text"
-          placeholder="Search by Patient ID, Name, Sample ID, or Organ Type..."
+          placeholder="Search by Patient ID, Sample ID..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="rp-search-input"
@@ -158,7 +158,7 @@ export default function Reports() {
             <tr>
               <th>Patient</th>
               <th>Sample ID</th>
-              <th>Organ Type</th>
+              {/* <th>Organ Type</th> */}
               <th>Release Date</th>
               <th>Actions</th>
             </tr>

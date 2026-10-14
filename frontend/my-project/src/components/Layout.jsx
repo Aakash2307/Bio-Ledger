@@ -55,6 +55,7 @@ export default function Layout({ children }) {
 
   // Close the drawer whenever the route changes.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOpen(false);
   }, [location.pathname]);
 

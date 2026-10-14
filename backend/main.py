@@ -3,20 +3,29 @@ from fastapi.middleware.cors import CORSMiddleware # type: ignore
 from database import create_tables, add_report_automation_schema
 from app.routes import patient_routes, sample_routes, dashboard_routes, report_routes
 from app.services.report_worker import start_worker
-from app.services.provisioning import start_provisioning   # NEW
+from app.services.provisioning import start_provisioning
+from app.services.import_run_inputs import start_import_loop   # NEW
 from app.routes import variant_routes
 from app.routes import gene_panel_routes
-from app.routes import bam_routes   # NEW: igv.js session + BAM/BAI range serving
+from app.routes import bam_routes
+import os
+
+from dotenv import load_dotenv
+load_dotenv()
 
 app = FastAPI(title="Backend for Bioledger")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        os.getenv("IP_ADDRESS"),
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["Content-Range", "Accept-Ranges", "Content-Length"],  # NEW: needed by igv.js
+    expose_headers=["Content-Range", "Accept-Ranges", "Content-Length"],
 )
 
 # Initialize DB tables on startup
@@ -24,7 +33,10 @@ create_tables()
 add_report_automation_schema()
 
 # Create sample folders + expected file paths (background thread)
-start_provisioning()                                         # NEW
+start_provisioning()
+
+# Copy germline/somatic Excel files from the Mibiome run output (background thread)
+start_import_loop()                                          # NEW
 
 # Register routers
 app.include_router(patient_routes.router)
@@ -32,9 +44,9 @@ app.include_router(sample_routes.router)
 app.include_router(dashboard_routes.router)
 app.include_router(report_routes.router)
 app.include_router(variant_routes.router)
-app.include_router(variant_routes.sample_router)   # sample-ID search: check + load
+app.include_router(variant_routes.sample_router)
 app.include_router(gene_panel_routes.router)
-app.include_router(bam_routes.router)              # NEW
+app.include_router(bam_routes.router)
 
 # Start the single-worker report generation queue
 start_worker()

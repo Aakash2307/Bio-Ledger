@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { T, panel, btnBase, CLASS_META } from "./variantTheme";
+import { T, btnBase, CLASS_META } from "./variantTheme";
 
 // Ref/Alt sequences beyond this length get collapsed to a one-line
 // preview by default; click the cell to expand to the full wrapped

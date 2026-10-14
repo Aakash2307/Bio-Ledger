@@ -1,5 +1,5 @@
 import { useState, lazy, Suspense } from "react"; // CHANGED: lazy + Suspense
-import { T, btnBase, GENE_CATEGORY_META } from "./variantTheme";
+import { T, GENE_CATEGORY_META } from "./variantTheme";
 
 // NEW: lazy so igv.js (large) only downloads when an analyst opens the Viewer tab.
 const IgvViewer = lazy(() => import("./IgvViewer"));

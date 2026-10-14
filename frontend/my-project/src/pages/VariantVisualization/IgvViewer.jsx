@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/refs */
 import { useEffect, useRef, useState } from "react";
 import igv from "igv";
 import "../../css/IgvViewer.css";

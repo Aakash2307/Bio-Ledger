@@ -377,3 +377,31 @@ body { background: #f1f5f9; font-family: 'DM Sans', sans-serif; }
 .pager-btn:hover:not(:disabled) { border-color: #3b82f6; color: #2563eb; }
 .pager-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .pager-info { font-size: 13px; color: #64748b; }
+
+
+/* Sample table header: dark blue */
+/* Sample table header text: bold, dark black */
+
+.sample-th {
+  background: #e2e8f0;
+  border-bottom: 1px solid #cbd5e1;
+}
+
+.sample-th-btn.active {
+  color: #1d4ed8;
+}
+
+.sample-th,
+.sample-th-btn,
+.sample-th-btn.active {
+  font-weight: 800;
+  color: #0f172a;
+}
+
+
+
+/* Filter row under the header */
+.sample-filter-th {
+  background: #eff6ff;
+  border-bottom: 1px solid #bfdbfe;
+}

@@ -1,12 +1,15 @@
 """
 app/services/bam_service.py
 
-Locate a sample's BAM/BAI on the server share, issue + verify short-lived
-signed tokens, write the BAM access audit log, and serve byte ranges.
+Locate a sample's BAM/BAI (and germline/somatic VCF) on the server share,
+issue + verify short-lived signed tokens, write the access audit log, and
+serve byte ranges.
 
 Expected layout (from the pipeline output):
   <BAM_ROOT>/**/<sid>/<BAM_SUBDIR>/<BAM_FILENAME>       e.g. .../4A0030/Mapping/recalibration.bam
   <same path>.bai   (or recalibration.bai)
+  <BAM_ROOT>/**/<sid>/VCF/Germline/Filtered_Germline.vcf
+  <BAM_ROOT>/**/<sid>/VCF/Somatic/Filtered_Somatic.vcf   (names configurable in .env)
 """
 
 import base64
@@ -36,6 +39,15 @@ BAM_SEARCH_DEPTH = int(os.environ.get("BAM_SEARCH_DEPTH", "6"))
 TOKEN_TTL = int(os.environ.get("BAM_TOKEN_TTL_SECONDS", "14400"))
 SIGNING_SECRET = os.environ.get("BAM_SIGNING_SECRET", "")
 
+# VCF locations, relative to the sample folder (override any of these in .env)
+VCF_SUBDIR = os.environ.get("VCF_SUBDIR", "VCF")
+VCF_KINDS = {
+    "germline": (os.environ.get("VCF_GERMLINE_DIR", "Germline"),
+                 os.environ.get("VCF_GERMLINE_FILENAME", "Filtered_Germline.vcf")),
+    "somatic": (os.environ.get("VCF_SOMATIC_DIR", "Somatic"),
+                os.environ.get("VCF_SOMATIC_FILENAME", "Filtered_Somatic.vcf")),
+}
+
 # Strict allow-list: no dots, slashes or whitespace, so a sid can never form
 # a path component like ".." or "a/b".
 SID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
@@ -43,7 +55,7 @@ CHUNK = 1024 * 1024
 
 
 # ---------------------------------------------------------------------------
-# Audit log: one line per BAM/BAI request (and per session) -> logs/bam_access.log
+# Audit log: one line per BAM/BAI/VCF request (and per session) -> logs/bam_access.log
 # ---------------------------------------------------------------------------
 
 def _build_audit_logger() -> logging.Logger:
@@ -138,6 +150,82 @@ def resolve_bam(sid: str) -> tuple[Path, Path]:
                 raise HTTPException(400, "Invalid BAM index path")
             return bam, bai
     raise HTTPException(404, f"BAM index (.bai) is missing for sample {sid}")
+
+
+# ---------------------------------------------------------------------------
+# Sample id -> VCF (germline / somatic) path
+#   Prefers  <name>.vcf.gz + .tbi/.csi   (bgzipped + indexed, best for big files)
+#   Falls back to plain <name>.vcf       (loaded whole by igv.js, fine when filtered)
+#   If the exact file name is missing, any "Filtered*.vcf[.gz]" in that folder is used.
+# ---------------------------------------------------------------------------
+
+def _guard(p: Path, root: Path) -> Path:
+    p = p.resolve()
+    if not p.is_relative_to(root):                       # path-traversal / symlink-escape guard
+        raise HTTPException(400, "Invalid VCF path")
+    return p
+
+
+def _pick_in_dir(folder: Path, fname: str) -> tuple[Path, Path | None] | None:
+    stem = fname[:-3] if fname.endswith(".gz") else fname
+    names = [stem]
+    if folder.is_dir():
+        extra = sorted(
+            p.name[:-3] if p.name.endswith(".gz") else p.name
+            for p in folder.iterdir()
+            if p.is_file() and p.name.lower().startswith("filtered")
+            and (p.name.endswith(".vcf") or p.name.endswith(".vcf.gz"))
+        )
+        names += [n for n in extra if n not in names]
+
+    for name in names:
+        plain = folder / name
+        gz = folder / (name + ".gz")
+        if gz.is_file():
+            for tbi in (Path(str(gz) + ".tbi"), Path(str(gz) + ".csi")):
+                if tbi.is_file():
+                    return gz, tbi
+        if plain.is_file():
+            return plain, None
+    return None
+
+
+def _sample_dir(sid: str, root: Path) -> Path | None:
+    bam = _locate(sid, root)
+    if not bam:
+        return None
+    # <sample_dir>/<BAM_SUBDIR>/<BAM_FILENAME>
+    return bam.resolve().parents[len(Path(BAM_SUBDIR).parts)]
+
+
+def list_vcfs(sid: str) -> dict[str, tuple[Path, Path | None]]:
+    """Which VCFs exist for this sample ({kind: (vcf, index_or_None)}). Never raises for a missing file."""
+    validate_sid(sid)
+    root = _root()
+    sdir = _sample_dir(sid, root)
+    if not sdir:
+        return {}
+    out: dict[str, tuple[Path, Path | None]] = {}
+    for kind, (sub, fname) in VCF_KINDS.items():
+        hit = _pick_in_dir(sdir / VCF_SUBDIR / sub, fname)
+        if hit:
+            vcf, idx = hit
+            out[kind] = (_guard(vcf, root), _guard(idx, root) if idx else None)
+    return out
+
+
+def resolve_vcf(sid: str, kind: str, want_index: bool = False) -> Path:
+    if kind not in VCF_KINDS:
+        raise HTTPException(400, "Invalid VCF type")
+    hit = list_vcfs(sid).get(kind)
+    if not hit:
+        raise HTTPException(404, f"No {kind} VCF found for sample {sid}")
+    vcf, idx = hit
+    if want_index:
+        if not idx:
+            raise HTTPException(404, "This VCF has no index")
+        return idx
+    return vcf
 
 
 # ---------------------------------------------------------------------------

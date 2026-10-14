@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/refs */
 import { useEffect, useRef, useState } from "react";
 import igv from "igv";
+import { vcfTypeStore } from "./vcfTypeStore";
 import "../../css/IgvViewer.css";
 
 // Genome build is configurable (VITE_IGV_GENOME). The pipeline is GRCh38.
@@ -10,6 +11,7 @@ const GENOME_LABEL = GENOME === "hg38" ? "GRCh38 / hg38" : GENOME;
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 const FLANK = 100;               // bp either side of the variant
 const TRACK_HEIGHT = 300;        // reads track height when docked
+const VCF_TRACK_HEIGHT = 80;     // VCF track height
 const FULLSCREEN_RESERVED = 400; // px kept for toolbar, ruler, gene track (bigger = shorter reads track)
 const MAX_ALLELE_IN_FILENAME = 20; // long indel alleles are truncated in the file name
 
@@ -34,6 +36,7 @@ function locusFor(chrom, pos, refAllele, chrPrefix) {
 const stripChr = (c) => String(c ?? "").replace(/^chr/i, "").toLowerCase();
 const fmt = (n) => Math.round(n).toLocaleString("en-US");
 const viewLabel = (v) => (v ? `${v.chr}:${fmt(v.start + 1)}-${fmt(v.end)}` : "");
+const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "");
 
 // Make a value safe for use inside a file name (no spaces, slashes, commas, etc.).
 function safePart(value, maxLen = 60) {
@@ -56,6 +59,49 @@ function svgFilename(sampleId, chrom, pos, refAllele, altAllele) {
 async function errorDetail(res) {
   const body = await res.json().catch(() => ({}));
   return typeof body.detail === "string" ? body.detail : "";
+}
+
+// Desktop-IGV-style click popup: "Read name = …", "Mapping = Primary @ MAPQ 60",
+// "Base = T @ QV 29", coverage counts, etc. igv.js hands us the popup items;
+// we render each as one plain line inside a scrollable box.
+const escHtml = (s) =>
+  String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+
+const LOCUS_RE = /^(chr)?[\w.]+:[\d,]+(-[\d,]+)?$/i;   // "chr1:1,298,200"
+const isHr = (r) => /^<hr\s*\/?>$/i.test(String(r).trim());
+
+// One popup line, written the way desktop IGV writes it:
+//   "Total count: 41"   "G : 21 (51%, 8+, 13- )"   "Read name = …"
+function popupRow(it) {
+  if (typeof it === "string") {
+    const t = it.trim();
+    if (isHr(t)) return "<hr/>";
+    let m = t.match(/^total\s*count\s*[:=]\s*(.*)$/i);
+    if (m) return `Total count: ${m[1]}`;
+    m = t.match(/^([ACGTN])\s*[:=]\s*(.*)$/i);
+    if (m) return `${m[1].toUpperCase()} : ${m[2]}`;
+    return t;                                               // igv already supplies safe text / html
+  }
+  if (it && typeof it === "object") {
+    if (it.html !== undefined) return String(it.html);
+    if (it.name !== undefined) {
+      const name = String(it.name).trim();
+      const value = it.value === undefined || it.value === null ? "" : String(it.value).trim();
+      if (!value) return isHr(name) ? "<hr/>" : escHtml(name);
+      if (/^total\s*count$/i.test(name)) return `Total count: ${escHtml(value)}`;
+      if (/^[ACGTN]$/i.test(name)) return `${escHtml(name.toUpperCase())} : ${escHtml(value)}`;
+      return `${escHtml(name)} = ${escHtml(value)}`;
+    }
+  }
+  return "";
+}
+
+function buildPopupHtml(popoverData) {
+  const rows = popoverData.map(popupRow).filter((r) => r !== "");
+  // Desktop IGV puts a rule under the locus line ("chr1:1,298,200") of the coverage popup.
+  if (rows.length > 1 && LOCUS_RE.test(rows[0]) && !isHr(rows[1])) rows.splice(1, 0, "<hr/>");
+  const body = rows.map((r) => (isHr(r) ? "<hr/>" : `<div>${r}</div>`)).join("");
+  return `<div class="gv-pop">${body}</div>`;
 }
 
 function Icon({ d, size = 14 }) {
@@ -159,11 +205,31 @@ function VariantSummary({ sampleId, chrom, pos, refAllele, altAllele, depth }) {
   );
 }
 
-function GenomeViewerStatusBar({ sampleId, view, ready }) {
+function GenomeViewerStatusBar({ sampleId, view, ready, vcf }) {
+  // vcf = { status: "none" | "missing" | "loading" | "loaded" | "error", name, kind, indexed }
+  let vcfEl = null;
+  if (ready) {
+    if (vcf.status === "loaded") {
+      vcfEl = (
+        <span className="ok" title={vcf.name}>
+          <Icon d={ICON.check} size={12} /> VCF loaded: {vcf.name} ({cap(vcf.kind)}{vcf.indexed ? ", indexed" : ""})
+        </span>
+      );
+    } else if (vcf.status === "loading") {
+      vcfEl = <span>VCF: loading {vcf.name}…</span>;
+    } else if (vcf.status === "error") {
+      vcfEl = <span style={{ color: "var(--gv-err)", fontWeight: 600 }}>VCF failed to load</span>;
+    } else if (vcf.status === "missing") {
+      vcfEl = <span style={{ color: "var(--gv-warn)", fontWeight: 600 }}>VCF: {cap(vcf.kind)} file not found</span>;
+    } else {
+      vcfEl = <span style={{ color: "var(--gv-warn)", fontWeight: 600 }}>VCF: not found for this sample</span>;
+    }
+  }
   return (
     <div className="gv-status">
       <span className={ready ? "ok" : ""}>{ready && <Icon d={ICON.check} size={12} />} BAM {ready ? "loaded" : "pending"}</span>
       <span className={ready ? "ok" : ""}>{ready && <Icon d={ICON.check} size={12} />} BAI {ready ? "indexed" : "pending"}</span>
+      {vcfEl}
       <span>Reference: <b style={{ color: "#0F172A", fontWeight: 600 }}>{GENOME_LABEL}</b></span>
       <span>Reads: {sampleId}</span>
       <span className="gv-mono" style={{ fontFamily: "var(--gv-mono)" }}>{view ? viewLabel(view) : "—"}</span>
@@ -222,6 +288,7 @@ export default function IgvViewer({ sampleId, chrom, pos, refAllele, altAllele, 
   const lastLocusRef = useRef(null);
   const editingRef = useRef(false);
   const variantRef = useRef({ chrom, pos, refAllele });
+  const vcfTrackRef = useRef(null);
 
   const [state, setState] = useState({ status: "loading", detail: "", phase: 0 });
   const [attempt, setAttempt] = useState(0);
@@ -231,6 +298,18 @@ export default function IgvViewer({ sampleId, chrom, pos, refAllele, altAllele, 
   const [query, setQuery] = useState("");
   const [searchError, setSearchError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [vcfs, setVcfs] = useState([]);            // [{ kind, name, url, index_url }] available for this sample
+  // Which VCF to show is decided by what the analyst opened (Germline / Somatic dialog); no manual picker.
+  // eslint-disable-next-line no-undef
+  const selectedType = useSyncExternalStore(vcfTypeStore.subscribe, vcfTypeStore.get);
+  // If the type is unknown (e.g. sample opened by another route), fall back to whichever VCF exists (germline first).
+  const vcfKind =
+    selectedType === "germline" || selectedType === "somatic" ? selectedType
+    : vcfs.some((v) => v.kind === "germline") ? "germline"
+    : vcfs.some((v) => v.kind === "somatic") ? "somatic"
+    : "none";
+  const [vcfError, setVcfError] = useState("");
+  const [vcfStatus, setVcfStatus] = useState("idle"); // "idle" | "loading" | "loaded" | "error"
   const { status, detail, phase } = state;
   const ready = status === "ready";
 
@@ -271,6 +350,7 @@ export default function IgvViewer({ sampleId, chrom, pos, refAllele, altAllele, 
         setState({ status: "loading", detail: "", phase: 1 });
 
         chrPrefixRef.current = session.chr_prefix;
+        setVcfs(Array.isArray(session.vcfs) ? session.vcfs : []);
         const v = variantRef.current;
         const locus = locusFor(v.chrom, v.pos, v.refAllele, session.chr_prefix);
 
@@ -303,6 +383,16 @@ export default function IgvViewer({ sampleId, chrom, pos, refAllele, altAllele, 
           });
         } catch (err) { console.error("IGV locuschange hook failed:", err); }
 
+        // Desktop-IGV-style click popup for reads, coverage and VCF variants.
+        // Returning a string makes igv.js show that HTML; anything unexpected
+        // falls back to igv.js's own default popup.
+        try {
+          browser.on?.("trackclick", (track, popoverData) => {
+            if (!Array.isArray(popoverData) || !popoverData.length) return undefined;
+            try { return buildPopupHtml(popoverData); } catch { return undefined; }
+          });
+        } catch (err) { console.error("IGV trackclick hook failed:", err); }
+
         created = browser;
         browserRef.current = browser;
         lastLocusRef.current = locus;
@@ -320,11 +410,50 @@ export default function IgvViewer({ sampleId, chrom, pos, refAllele, altAllele, 
       cancelled = true;
       clearTimeout(timer);
       if (created) igv.removeBrowser(created);
+      vcfTrackRef.current = null;
       browserRef.current = null;
       setView(null);
       setVp(null);
     };
   }, [sampleId, attempt]);
+
+  // VCF selector changed (or the browser was (re)created) -> swap the VCF track.
+  useEffect(() => {
+    const b = browserRef.current;
+    if (!ready || !b) return;
+    let cancelled = false;
+
+    (async () => {
+      setVcfError("");
+      setVcfStatus("idle");
+      if (vcfTrackRef.current) {
+        try { b.removeTrack(vcfTrackRef.current); } catch (e) { console.error("VCF remove failed:", e); }
+        vcfTrackRef.current = null;
+      }
+      if (vcfKind === "none") return;
+      const f = vcfs.find((v) => v.kind === vcfKind);
+      if (!f) return;
+      setVcfStatus("loading");
+      try {
+        const t = await b.loadTrack({
+          type: "variant",
+          format: "vcf",                     // required: the URL has a query string
+          name: f.name,
+          url: `${API_BASE}${f.url}`,
+          ...(f.index_url ? { indexURL: `${API_BASE}${f.index_url}` } : { indexed: false }),
+          height: VCF_TRACK_HEIGHT,
+        });
+        if (cancelled) { try { b.removeTrack(t); } catch { /* ignore */ } return; }
+        vcfTrackRef.current = t;
+        setVcfStatus("loaded");
+      } catch (err) {
+        console.error("VCF load failed:", err);
+        if (!cancelled) { setVcfError(err?.message || "Could not load VCF"); setVcfStatus("error"); }
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [vcfKind, vcfs, ready]);
 
   // Variant changed -> move the existing browser; never recreate it.
   useEffect(() => {
@@ -461,7 +590,14 @@ export default function IgvViewer({ sampleId, chrom, pos, refAllele, altAllele, 
       <VariantSummary sampleId={sampleId} chrom={chrom} pos={pos} refAllele={refAllele} altAllele={altAllele} depth={depth} />
 
       <div className="gv-caption">
-        Read alignments <b>{sampleId} reads</b> <span className="gv-chip">BAM</span>
+        <span>Read alignments <b>{sampleId} reads</b> <span className="gv-chip">BAM</span></span>
+        {vcfKind !== "none" && (
+          <span className="gv-vcf-pick">
+            Variants <b>{vcfs.find((v) => v.kind === vcfKind)?.name || `${cap(vcfKind)} VCF`}</b>
+            <span className="gv-chip">VCF</span>
+            {vcfError && <span className="gv-vcf-err" role="alert">{vcfError}</span>}
+          </span>
+        )}
       </div>
 
       <div className="gv-stage" ref={stageRef}>
@@ -477,7 +613,17 @@ export default function IgvViewer({ sampleId, chrom, pos, refAllele, altAllele, 
         )}
       </div>
 
-      <GenomeViewerStatusBar sampleId={sampleId} view={view} ready={ready} />
+      <GenomeViewerStatusBar
+        sampleId={sampleId} view={view} ready={ready}
+        vcf={(() => {
+          const f = vcfs.find((v) => v.kind === vcfKind);
+          const status =
+            vcfKind === "none" ? "none"
+            : !f ? "missing"
+            : vcfStatus === "idle" ? "loading" : vcfStatus;
+          return { status, name: f?.name, kind: vcfKind, indexed: !!f?.index_url };
+        })()}
+      />
     </div>
   );
 }

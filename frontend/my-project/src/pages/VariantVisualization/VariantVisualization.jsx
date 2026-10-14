@@ -3,6 +3,7 @@ import VariantSummary from "./VariantSummary";
 import VariantTable from "./VariantTable";
 import VariantDetailPanel from "./VariantDetailPanel";
 import SampleFileDialog from "./SampleFileDialog";
+import { vcfTypeStore } from "./vcfTypeStore";   // NEW: remembers germline / somatic for the genome viewer
 import { T, panel } from "./variantTheme";
 import "../../css/VariantVisualization.css";
 
@@ -182,6 +183,9 @@ export default function VariantVisualization() {
       : lower.includes("prs") || lower.includes("trait") ? "prs"
       : "somatic";
 
+    // NEW: tell the genome viewer which VCF (germline / somatic) to show.
+    vcfTypeStore.set(type === "germline" || type === "somatic" ? type : null);
+
     setUploading(true);
     const form = new FormData();
     form.append("file", file);
@@ -228,6 +232,7 @@ export default function VariantVisualization() {
     setSelected(null);
     setSearchError("");
     setPendingSid("");
+    vcfTypeStore.set(null);   // NEW: forget germline / somatic
   };
 
   // Steps 1-2: does the sample exist (samples.sid -> sample_records)?
@@ -269,6 +274,7 @@ export default function VariantVisualization() {
 
       setPendingSid("");
       setSampleId(sid);
+      vcfTypeStore.set(type);   // NEW: "germline" | "somatic" -> genome viewer loads the matching .vcf
       setClassFilter(null);
       setGeneCategoryFilter(null);
       setPanelFilter(null);

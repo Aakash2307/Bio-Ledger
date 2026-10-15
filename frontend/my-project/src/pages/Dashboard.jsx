@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+// import { useNavigate } from "react-router-dom";
 import DashboardHeader       from "../components/DashboardHeader";
 import StatCardsRow          from "../components/StatCardsRow";
 import CaseDistributionChart from "../components/CaseDistributionChart";
@@ -42,7 +42,7 @@ export default function Dashboard() {
   const [reportStats, setReportStats]       = useState(true);
   const [loading, setLoading]             = useState(true);
   const [error, setError]                 = useState(null);
-  const navigate                          = useNavigate();
+  // const navigate                          = useNavigate();
 
   useEffect(() => {
     async function load() {
@@ -110,26 +110,26 @@ export default function Dashboard() {
     : [];
 
   // ── Organ distribution ──
-  const organData = summary?.organ_counts
-    ? Object.entries(summary.organ_counts)
-        .filter(([name]) => name && name !== "null")
-        .map(([name, value], i) => {
-          const total = Object.values(summary.organ_counts).reduce((a, b) => a + b, 0);
-          return { name, value, percent: total > 0 ? `${((value / total) * 100).toFixed(1)}%` : "0%", color: ORGAN_COLORS[i % ORGAN_COLORS.length] };
-        })
-        .sort((a, b) => b.value - a.value)
-    : [];
+  // const organData = summary?.organ_counts
+  //   ? Object.entries(summary.organ_counts)
+  //       .filter(([name]) => name && name !== "null")
+  //       .map(([name, value], i) => {
+  //         const total = Object.values(summary.organ_counts).reduce((a, b) => a + b, 0);
+  //         return { name, value, percent: total > 0 ? `${((value / total) * 100).toFixed(1)}%` : "0%", color: ORGAN_COLORS[i % ORGAN_COLORS.length] };
+  //       })
+  //       .sort((a, b) => b.value - a.value)
+  //   : [];
 
   // ── Benign organ distribution ──
-  const benignData = summary?.benign_organ_counts
-    ? Object.entries(summary.benign_organ_counts)
-        .filter(([name]) => name && name !== "null")
-        .map(([name, value], i) => {
-          const total = Object.values(summary.benign_organ_counts).reduce((a, b) => a + b, 0);
-          return { name, value, percent: total > 0 ? `${((value / total) * 100).toFixed(1)}%` : "0%", color: ORGAN_COLORS[i % ORGAN_COLORS.length] };
-        })
-        .sort((a, b) => b.value - a.value)
-    : [];
+  // const benignData = summary?.benign_organ_counts
+  //   ? Object.entries(summary.benign_organ_counts)
+  //       .filter(([name]) => name && name !== "null")
+  //       .map(([name, value], i) => {
+  //         const total = Object.values(summary.benign_organ_counts).reduce((a, b) => a + b, 0);
+  //         return { name, value, percent: total > 0 ? `${((value / total) * 100).toFixed(1)}%` : "0%", color: ORGAN_COLORS[i % ORGAN_COLORS.length] };
+  //       })
+  //       .sort((a, b) => b.value - a.value)
+  //   : [];
 
   // ── Source distribution ── ← NEW
   const sourceData = summary?.source_counts

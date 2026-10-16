@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import DashboardHeader       from "../components/DashboardHeader";
 import StatCardsRow          from "../components/StatCardsRow";
 import CaseDistributionChart from "../components/CaseDistributionChart";
-import RecentActivity        from "../components/RecentActivity";
+// import RecentActivity        from "../components/RecentActivity";
 import { getDashboardSummary , getReportStats } from "../api";
 // import OrganDistributionChart from "../components/OrganDistributionChart";
 import OrganCaseBreakdownChart from "../components/OrganCaseBreakdownChart";

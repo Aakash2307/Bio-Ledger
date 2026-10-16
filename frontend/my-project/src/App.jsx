@@ -14,6 +14,7 @@ import Reports              from "./pages/Reports";
 import ReportAutomation     from "./pages/ReportAutomation";
 import BioLedgerSpinner     from "./pages/BioledgerSpinner";
 import VariantVisualization from "./pages/VariantVisualization/VariantVisualization";
+import Settings             from "./pages/Settings";
 
 import GenePanel            from "./pages/Genepanel";
 
@@ -48,6 +49,7 @@ function App() {
             <Route path="/variants"                      element={<VariantVisualization />} />
             <Route path="/spinner"                       element={<BioLedgerSpinner />} />
             <Route path="/gene-panel"                    element={<GenePanel />} />
+            <Route path="/settings"                      element={<Settings />} />
             
           </Routes>
         </Layout>
